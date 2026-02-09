@@ -81,6 +81,8 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.atna.bugreport.CrashHandler
+import com.atna.bugreport.GitHubIssueSubmitter
+import com.atna.bugreport.GitHubTokenProvider
 import com.vitorpamplona.amethyst.commons.ui.screens.MessagesPlaceholder
 import com.vitorpamplona.amethyst.desktop.account.AccountManager
 import com.vitorpamplona.amethyst.desktop.account.AccountState
@@ -260,9 +262,20 @@ fun main() {
             )
 
             crashReport?.let { report ->
+                val scope = rememberCoroutineScope()
                 CrashReportDialog(
                     crashReport = report,
-                    onSubmit = {
+                    onSubmit = { submittedReport ->
+                        val token = GitHubTokenProvider.resolveToken()
+                        if (token != null) {
+                            scope.launch(Dispatchers.IO) {
+                                GitHubIssueSubmitter(
+                                    repoOwner = "HalfzwareLinda",
+                                    repoName = "atna",
+                                    token = token,
+                                ).submit(submittedReport)
+                            }
+                        }
                         CrashHandler.clearPendingCrashReport("$crashDir/crash_report.json")
                         crashReport = null
                     },

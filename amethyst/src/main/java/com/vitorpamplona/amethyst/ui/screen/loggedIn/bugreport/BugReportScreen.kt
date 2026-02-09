@@ -47,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.atna.bugreport.BugReport
 import com.atna.bugreport.GitHubIssueSubmitter
+import com.atna.bugreport.GitHubTokenProvider
 import com.vitorpamplona.amethyst.BuildConfig
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.ui.navigation.navs.INav
@@ -158,11 +159,17 @@ private fun BugReportForm(
                             platform = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
                             device = "${Build.MANUFACTURER} ${Build.MODEL}",
                         )
+                    val token = GitHubTokenProvider.resolveToken()
+                    if (token == null) {
+                        isSubmitting = false
+                        snackbarHostState.showSnackbar("$errorMessage: ATNA_GITHUB_PAT not set")
+                        return@launch
+                    }
                     val submitter =
                         GitHubIssueSubmitter(
                             repoOwner = "HalfzwareLinda",
                             repoName = "atna",
-                            token = "", // Token injected at build time or from settings
+                            token = token,
                         )
                     val result = withContext(Dispatchers.IO) { submitter.submit(report) }
                     isSubmitting = false

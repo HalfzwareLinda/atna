@@ -34,5 +34,37 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+
+        // Shared JVM+Android source set for LMDB storage via rust-nostr SDK
+        val jvmAndroid =
+            create("jvmAndroid") {
+                dependsOn(commonMain.get())
+                dependencies {
+                    implementation(libs.rust.nostr.sdk.jvm.get().toString()) {
+                        // Exclude JNA JAR — quartz already provides JNA AAR for Android and JAR for JVM
+                        exclude(group = "net.java.dev.jna", module = "jna")
+                    }
+                }
+            }
+
+        jvmMain {
+            dependsOn(jvmAndroid)
+        }
+
+        androidMain {
+            dependsOn(jvmAndroid)
+        }
+
+        val jvmAndroidTest =
+            create("jvmAndroidTest") {
+                dependsOn(commonTest.get())
+                dependencies {
+                    implementation(libs.kotlinx.coroutines.test)
+                }
+            }
+
+        jvmTest {
+            dependsOn(jvmAndroidTest)
+        }
     }
 }

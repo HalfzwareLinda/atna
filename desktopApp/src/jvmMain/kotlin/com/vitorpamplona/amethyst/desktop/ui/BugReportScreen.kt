@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.atna.bugreport.BugReport
 import com.atna.bugreport.GitHubIssueSubmitter
+import com.atna.bugreport.GitHubTokenProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -134,11 +135,17 @@ fun DesktopBugReportScreen() {
                             platform = "$osName $osVersion",
                             device = System.getProperty("os.arch") ?: "unknown",
                         )
+                    val token = GitHubTokenProvider.resolveToken()
+                    if (token == null) {
+                        isSubmitting = false
+                        statusMessage = "Failed: ATNA_GITHUB_PAT environment variable not set"
+                        return@launch
+                    }
                     val submitter =
                         GitHubIssueSubmitter(
                             repoOwner = "HalfzwareLinda",
                             repoName = "atna",
-                            token = "", // Token injected at build time or from settings
+                            token = token,
                         )
                     val result = withContext(Dispatchers.IO) { submitter.submit(report) }
                     isSubmitting = false

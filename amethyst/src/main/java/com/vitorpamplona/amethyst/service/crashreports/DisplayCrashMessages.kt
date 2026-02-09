@@ -35,9 +35,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
+import com.atna.bugreport.BugReport
+import com.atna.bugreport.GitHubIssueSubmitter
+import com.atna.bugreport.GitHubTokenProvider
 import com.vitorpamplona.amethyst.Amethyst
+import com.vitorpamplona.amethyst.BuildConfig
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.model.LocalCache
 import com.vitorpamplona.amethyst.ui.navigation.navs.INav
@@ -47,6 +52,7 @@ import com.vitorpamplona.amethyst.ui.stringRes
 import com.vitorpamplona.amethyst.ui.theme.Size16dp
 import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -63,6 +69,7 @@ fun DisplayCrashMessages(
     }
 
     stackTrace.value?.let { stack ->
+        val scope = rememberCoroutineScope()
         AlertDialog(
             onDismissRequest = { stackTrace.value = null },
             title = { Text(stringResource(R.string.crashreport_found)) },
@@ -79,6 +86,26 @@ fun DisplayCrashMessages(
             confirmButton = {
                 Button(
                     onClick = {
+                        // Submit to GitHub if token is available
+                        GitHubTokenProvider.resolveToken()?.let { token ->
+                            scope.launch(Dispatchers.IO) {
+                                val report =
+                                    BugReport(
+                                        title = "[Crash] ${stack.lineSequence().first().take(80)}",
+                                        description = "Automatic crash report",
+                                        appVersion = BuildConfig.VERSION_NAME,
+                                        platform = "Android ${android.os.Build.VERSION.RELEASE}",
+                                        device = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+                                        stackTrace = stack,
+                                    )
+                                GitHubIssueSubmitter(
+                                    repoOwner = "HalfzwareLinda",
+                                    repoName = "atna",
+                                    token = token,
+                                ).submit(report)
+                            }
+                        }
+                        // Also send via DM as before
                         nav.nav {
                             routeToMessage(
                                 user = LocalCache.getOrCreateUser("aa9047325603dacd4f8142093567973566de3b1e20a89557b728c3be4c6a844b"),
