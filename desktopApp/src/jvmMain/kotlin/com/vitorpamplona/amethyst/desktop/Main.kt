@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -88,7 +89,9 @@ import com.vitorpamplona.amethyst.desktop.network.DesktopRelayConnectionManager
 import com.vitorpamplona.amethyst.desktop.subscriptions.DesktopRelaySubscriptionsCoordinator
 import com.vitorpamplona.amethyst.desktop.ui.BookmarksScreen
 import com.vitorpamplona.amethyst.desktop.ui.ComposeNoteDialog
+import com.vitorpamplona.amethyst.desktop.ui.CrashReportDialog
 import com.vitorpamplona.amethyst.desktop.ui.DesktopBugReportScreen
+import com.vitorpamplona.amethyst.desktop.ui.DesktopMarmotGroupsScreen
 import com.vitorpamplona.amethyst.desktop.ui.FeedScreen
 import com.vitorpamplona.amethyst.desktop.ui.LoginScreen
 import com.vitorpamplona.amethyst.desktop.ui.NotificationsScreen
@@ -136,6 +139,8 @@ sealed class DesktopScreen {
     object Settings : DesktopScreen()
 
     object BugReport : DesktopScreen()
+
+    object MarmotGroups : DesktopScreen()
 }
 
 fun main() {
@@ -151,6 +156,8 @@ fun main() {
                 .hostName,
     ).install()
 
+    val pendingCrash = CrashHandler.loadPendingCrashReport("$crashDir/crash_report.json")
+
     application {
         val windowState =
             rememberWindowState(
@@ -161,6 +168,7 @@ fun main() {
         var showComposeDialog by remember { mutableStateOf(false) }
         var replyToNote by remember { mutableStateOf<com.vitorpamplona.quartz.nip01Core.core.Event?>(null) }
         var currentScreen by remember { mutableStateOf<DesktopScreen>(DesktopScreen.Feed) }
+        var crashReport by remember { mutableStateOf(pendingCrash) }
 
         Window(
             onCloseRequest = ::exitApplication,
@@ -250,6 +258,20 @@ fun main() {
                 },
                 replyToNote = replyToNote,
             )
+
+            crashReport?.let { report ->
+                CrashReportDialog(
+                    crashReport = report,
+                    onSubmit = {
+                        CrashHandler.clearPendingCrashReport("$crashDir/crash_report.json")
+                        crashReport = null
+                    },
+                    onDismiss = {
+                        CrashHandler.clearPendingCrashReport("$crashDir/crash_report.json")
+                        crashReport = null
+                    },
+                )
+            }
         }
     }
 }
@@ -426,6 +448,13 @@ fun MainContent(
                 )
 
                 NavigationRailItem(
+                    icon = { Icon(Icons.Default.Lock, contentDescription = "Encrypted Groups") },
+                    label = { Text("Groups") },
+                    selected = currentScreen == DesktopScreen.MarmotGroups,
+                    onClick = { onScreenChange(DesktopScreen.MarmotGroups) },
+                )
+
+                NavigationRailItem(
                     icon = { Icon(Icons.Default.Notifications, contentDescription = "Notifications") },
                     label = { Text("Alerts") },
                     selected = currentScreen == DesktopScreen.Notifications,
@@ -572,6 +601,7 @@ fun MainContent(
                             onZapFeedback = onZapFeedback,
                             onReply = onShowReplyDialog,
                         )
+                    DesktopScreen.MarmotGroups -> DesktopMarmotGroupsScreen()
                     DesktopScreen.Settings -> RelaySettingsScreen(relayManager, account, accountManager)
                     DesktopScreen.BugReport -> DesktopBugReportScreen()
                 }

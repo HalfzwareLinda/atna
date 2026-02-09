@@ -58,6 +58,20 @@
       "problemMatcher": []
     },
     {
+      "label": "Run bug-reporter Tests",
+      "type": "shell",
+      "command": "./gradlew :bug-reporter:jvmTest",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Desktop App (Debug)",
+      "type": "shell",
+      "command": "./gradlew :desktopApp:run --debug-jvm",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
       "label": "Clean Build",
       "type": "shell",
       "command": "make clean",
