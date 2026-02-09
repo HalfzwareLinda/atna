@@ -122,6 +122,24 @@ fun SettingsScreen(sharedPrefs: UiSettingsFlow) {
         FeatureSetChoice(sharedPrefs)
         GalleryChoice(sharedPrefs)
         PushNotificationSettingsRow(sharedPrefs)
+        ShowStorageBackendInfo()
+    }
+}
+
+@Composable
+fun ShowStorageBackendInfo() {
+    val backendOptions =
+        persistentListOf(
+            TitleExplainer(stringRes(R.string.storage_backend_sqlite)),
+        )
+
+    SettingsRow(
+        R.string.storage_backend,
+        R.string.storage_backend_description,
+        backendOptions,
+        0,
+    ) {
+        // nostrdb backend not yet available, always SQLite
     }
 }
 

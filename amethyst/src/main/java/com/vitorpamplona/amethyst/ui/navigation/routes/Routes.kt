@@ -81,6 +81,10 @@ sealed class Route {
 
     @Serializable object UserSettings : Route()
 
+    @Serializable object BugReport : Route()
+
+    @Serializable object MarmotGroups : Route()
+
     @Serializable object Lists : Route()
 
     @Serializable data class MyPeopleListView(
@@ -358,6 +362,8 @@ fun getRouteWithArguments(navController: NavHostController): Route? {
         dest.hasRoute<Route.PeopleListManagement>() -> entry.toRoute<Route.PeopleListManagement>()
         dest.hasRoute<Route.NewGroupDM>() -> entry.toRoute<Route.NewGroupDM>()
         dest.hasRoute<Route.UserSettings>() -> entry.toRoute<Route.UserSettings>()
+        dest.hasRoute<Route.BugReport>() -> entry.toRoute<Route.BugReport>()
+        dest.hasRoute<Route.MarmotGroups>() -> entry.toRoute<Route.MarmotGroups>()
         dest.hasRoute<Route.ManualZapSplitPayment>() -> entry.toRoute<Route.ManualZapSplitPayment>()
 
         else -> {

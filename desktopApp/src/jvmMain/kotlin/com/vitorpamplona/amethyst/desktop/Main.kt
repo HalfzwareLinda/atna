@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
@@ -86,6 +87,7 @@ import com.vitorpamplona.amethyst.desktop.network.DesktopRelayConnectionManager
 import com.vitorpamplona.amethyst.desktop.subscriptions.DesktopRelaySubscriptionsCoordinator
 import com.vitorpamplona.amethyst.desktop.ui.BookmarksScreen
 import com.vitorpamplona.amethyst.desktop.ui.ComposeNoteDialog
+import com.vitorpamplona.amethyst.desktop.ui.DesktopBugReportScreen
 import com.vitorpamplona.amethyst.desktop.ui.FeedScreen
 import com.vitorpamplona.amethyst.desktop.ui.LoginScreen
 import com.vitorpamplona.amethyst.desktop.ui.NotificationsScreen
@@ -131,6 +133,8 @@ sealed class DesktopScreen {
     ) : DesktopScreen()
 
     object Settings : DesktopScreen()
+
+    object BugReport : DesktopScreen()
 }
 
 fun main() =
@@ -432,6 +436,13 @@ fun MainContent(
                     onClick = { onScreenChange(DesktopScreen.Settings) },
                 )
 
+                NavigationRailItem(
+                    icon = { Icon(Icons.Default.BugReport, contentDescription = "Bug Report") },
+                    label = { Text("Bug") },
+                    selected = currentScreen == DesktopScreen.BugReport,
+                    onClick = { onScreenChange(DesktopScreen.BugReport) },
+                )
+
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -548,6 +559,7 @@ fun MainContent(
                             onReply = onShowReplyDialog,
                         )
                     DesktopScreen.Settings -> RelaySettingsScreen(relayManager, account, accountManager)
+                    DesktopScreen.BugReport -> DesktopBugReportScreen()
                 }
             }
         }

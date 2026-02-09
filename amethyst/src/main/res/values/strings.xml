@@ -1475,4 +1475,26 @@
     <string name="follow_set_delete">Delete List</string>
     <string name="follow_pack_delete">Delete Pack</string>
     <string name="kinds">Kinds</string>
+
+    <!-- ATNA: Bug Report -->
+    <string name="report_bug">Report Bug</string>
+    <string name="bug_report_title">Bug Report</string>
+    <string name="bug_report_title_hint">Brief summary of the issue</string>
+    <string name="bug_report_description_hint">Describe what happened</string>
+    <string name="bug_report_steps_hint">Steps to reproduce (optional)</string>
+    <string name="bug_report_submit">Submit Bug Report</string>
+    <string name="bug_report_submitting">Submitting…</string>
+    <string name="bug_report_success">Bug report submitted successfully</string>
+    <string name="bug_report_error">Failed to submit bug report</string>
+
+    <!-- ATNA: Marmot Encrypted Groups -->
+    <string name="marmot_groups">Encrypted Groups</string>
+    <string name="marmot_no_groups">No encrypted groups yet</string>
+    <string name="marmot_coming_soon">Marmot encrypted group DMs coming soon</string>
+
+    <!-- ATNA: Storage Backend -->
+    <string name="storage_backend">Storage Backend</string>
+    <string name="storage_backend_description">Event storage engine for local data</string>
+    <string name="storage_backend_sqlite">SQLite (Default)</string>
+    <string name="storage_backend_nostrdb">nostrdb (Experimental)</string>
 </resources>

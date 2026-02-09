@@ -46,11 +46,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Drafts
 import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Translate
@@ -471,6 +473,14 @@ fun ListContent(
             route = Route.Drafts,
         )
 
+        NavigationRow(
+            title = R.string.marmot_groups,
+            icon = Icons.Outlined.Lock,
+            tint = MaterialTheme.colorScheme.onBackground,
+            nav = nav,
+            route = Route.MarmotGroups,
+        )
+
         IconRowRelays(
             accountViewModel = accountViewModel,
             onClick = {
@@ -532,6 +542,14 @@ fun ListContent(
             tint = MaterialTheme.colorScheme.onBackground,
             nav = nav,
             route = Route.UserSettings,
+        )
+
+        NavigationRow(
+            title = R.string.report_bug,
+            icon = Icons.Outlined.BugReport,
+            tint = MaterialTheme.colorScheme.onBackground,
+            nav = nav,
+            route = Route.BugReport,
         )
 
         Spacer(modifier = Modifier.weight(1f))
