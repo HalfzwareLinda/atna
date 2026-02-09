@@ -32,13 +32,13 @@ class MarmotModelsTest {
                 id = "group1",
                 name = "Test Group",
                 description = "A test group",
-                memberCount = 5,
+                adminPubkeys = listOf("admin1", "admin2"),
                 lastMessageAt = 1700000000L,
             )
         assertEquals("group1", group.id)
         assertEquals("Test Group", group.name)
         assertEquals("A test group", group.description)
-        assertEquals(5, group.memberCount)
+        assertEquals(2, group.adminPubkeys.size)
         assertEquals(1700000000L, group.lastMessageAt)
     }
 
@@ -49,7 +49,6 @@ class MarmotModelsTest {
                 id = "group2",
                 name = "Empty Group",
                 description = "",
-                memberCount = 1,
                 lastMessageAt = null,
             )
         assertNull(group.lastMessageAt)
@@ -76,31 +75,56 @@ class MarmotModelsTest {
     fun marmotInviteCreation() {
         val invite =
             MarmotInvite(
+                welcomeId = "welcome1",
                 groupId = "group1",
                 groupName = "Test Group",
                 inviterKey = "npub1xyz",
-                welcomeJson = "{\"welcome\": \"data\"}",
             )
+        assertEquals("welcome1", invite.welcomeId)
         assertEquals("group1", invite.groupId)
         assertEquals("Test Group", invite.groupName)
         assertEquals("npub1xyz", invite.inviterKey)
-        assertEquals("{\"welcome\": \"data\"}", invite.welcomeJson)
     }
 
     @Test
     fun marmotGroupDataClassEquality() {
-        val group1 = MarmotGroup("id", "name", "desc", 3, 100L)
-        val group2 = MarmotGroup("id", "name", "desc", 3, 100L)
+        val group1 = MarmotGroup(id = "id", name = "name", description = "desc", lastMessageAt = 100L)
+        val group2 = MarmotGroup(id = "id", name = "name", description = "desc", lastMessageAt = 100L)
         assertEquals(group1, group2)
         assertEquals(group1.hashCode(), group2.hashCode())
     }
 
     @Test
     fun marmotMessageDataClassCopy() {
-        val msg = MarmotMessage("id1", "group1", "sender1", "content", 100L)
+        val msg = MarmotMessage(id = "id1", groupId = "group1", senderKey = "sender1", content = "content", timestamp = 100L)
         val updated = msg.copy(content = "new content", timestamp = 200L)
         assertEquals("new content", updated.content)
         assertEquals(200L, updated.timestamp)
         assertEquals("id1", updated.id)
+    }
+
+    @Test
+    fun marmotProcessResultSealedClass() {
+        val msgResult =
+            MarmotProcessResult.Message(
+                MarmotMessage(id = "m1", groupId = "g1", senderKey = "s1", content = "test", timestamp = 100L),
+            )
+        val commitResult = MarmotProcessResult.Commit("mls-group-1")
+        val unprocessable = MarmotProcessResult.Unprocessable("mls-group-2")
+
+        assert(msgResult is MarmotProcessResult)
+        assertEquals("mls-group-1", (commitResult as MarmotProcessResult.Commit).mlsGroupId)
+        assertEquals("mls-group-2", (unprocessable as MarmotProcessResult.Unprocessable).mlsGroupId)
+    }
+
+    @Test
+    fun marmotCreateGroupResult() {
+        val result =
+            MarmotCreateGroupResult(
+                group = MarmotGroup(id = "g1", name = "Test", description = ""),
+                welcomeEventJsons = listOf("{\"welcome\":1}", "{\"welcome\":2}"),
+            )
+        assertEquals("g1", result.group.id)
+        assertEquals(2, result.welcomeEventJsons.size)
     }
 }

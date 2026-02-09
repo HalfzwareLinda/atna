@@ -66,10 +66,10 @@ private val DarkColorPalette =
         primary = Purple200,
         secondary = Teal200,
         tertiary = Teal200,
-        background = Color.Black,
-        surface = Color.Black,
-        surfaceDim = Color.Black,
-        surfaceVariant = Color(red = 29, green = 26, blue = 34),
+        background = Color(0xFF0D0D1A),
+        surface = Color(0xFF121228),
+        surfaceDim = Color(0xFF0D0D1A),
+        surfaceVariant = Color(0xFF1A1A2E),
     )
 
 private val LightColorPalette =
@@ -77,8 +77,8 @@ private val LightColorPalette =
         primary = Purple500,
         secondary = Teal200,
         tertiary = Teal200,
-        surfaceContainerHighest = Color(red = 236, green = 230, blue = 240),
-        surfaceVariant = Color(red = 250, green = 245, blue = 252),
+        surfaceContainerHighest = Color(0xFFE0F2F1),
+        surfaceVariant = Color(0xFFF0FAF9),
     )
 
 private val DarkNewItemBackground = DarkColorPalette.primary.copy(0.12f)
@@ -370,7 +370,7 @@ val MarkDownStyleOnLight =
     )
 
 val ColorScheme.isLight: Boolean
-    get() = primary == Purple500
+    get() = primary == Purple500 // Purple500 now holds ATNA teal (#00897B)
 
 val ColorScheme.newItemBackgroundColor: Color
     get() = if (isLight) LightNewItemBackground else DarkNewItemBackground

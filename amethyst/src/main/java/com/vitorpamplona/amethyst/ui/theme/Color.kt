@@ -24,18 +24,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 
-val Primary50 = Color(red = 127, green = 103, blue = 190)
-val Primary60 = Color(red = 154, green = 130, blue = 219)
-val Primary70 = Color(red = 182, green = 157, blue = 248)
-val Primary80 = Color(red = 208, green = 188, blue = 255)
+val Primary50 = Color(red = 0, green = 137, blue = 123)
+val Primary60 = Color(red = 0, green = 172, blue = 154)
+val Primary70 = Color(red = 0, green = 207, blue = 187)
+val Primary80 = Color(red = 0, green = 229, blue = 204)
 
-val DEFAULT_PRIMARY = Color(red = 208, green = 188, blue = 255)
-val LIGHT_PURPLE = Color(red = 187, green = 134, blue = 252)
+val DEFAULT_PRIMARY = Color(red = 0, green = 229, blue = 204)
+val LIGHT_ACCENT = Color(red = 77, green = 217, blue = 192)
 
-val Purple200 = Color(0xFFBB86FC)
-val Purple500 = Color(0xFF6200EE)
-val Purple700 = Color(0xFF3700B3)
-val Teal200 = Color(0xFF03DAC5)
+// ATNA brand colors (variable names kept for compatibility)
+val Purple200 = Color(0xFF00E5CC)
+val Purple500 = Color(0xFF00897B)
+val Purple700 = Color(0xFF00695C)
+val Teal200 = Color(0xFF9370DB)
 val BitcoinOrange = Color(0xFFF7931A)
 val RoyalBlue = Color(0xFF4169E1)
 
@@ -46,9 +47,9 @@ val Following = Color(0xFF03DAC5)
 val FollowsFollow = Color.Yellow
 val NIP05Verified = Color.Blue
 
-val Nip05EmailColor = Color(0xFFb198ec)
-val Nip05EmailColorDark = Color(0xFF6e5490)
-val Nip05EmailColorLight = Color(0xFFa770f3)
+val Nip05EmailColor = Color(0xFF4DD9C0)
+val Nip05EmailColorDark = Color(0xFF2A9D8F)
+val Nip05EmailColorLight = Color(0xFF5EECD5)
 
 val DarkerGreen = Color.Green.copy(alpha = 0.32f)
 

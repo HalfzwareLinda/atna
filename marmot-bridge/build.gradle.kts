@@ -35,10 +35,20 @@ kotlin {
             implementation(libs.kotlin.test)
         }
 
-        // mdk-kotlin dependencies will be added when MDK integration is implemented.
-        // For now, the MdkMarmotManager stubs don't call MDK, so no dependency needed.
-        // When ready, add per-platform:
-        //   androidMain: implementation("com.github.marmot-protocol:mdk-kotlin:0.5.2@aar")
-        //   jvmMain: implementation("com.github.marmot-protocol:mdk-kotlin:0.5.2")
+        // mdk-kotlin is Android-only (AAR with native .so libraries).
+        // Desktop JVM uses StubMarmotManager instead.
+        androidMain {
+            dependencies {
+                implementation(libs.mdk.kotlin.get().toString()) {
+                    exclude(group = "net.java.dev.jna", module = "jna")
+                }
+            }
+        }
+
+        jvmTest {
+            dependencies {
+                implementation(libs.kotlinx.coroutines.test)
+            }
+        }
     }
 }

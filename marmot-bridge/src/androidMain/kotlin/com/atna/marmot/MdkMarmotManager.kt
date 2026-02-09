@@ -20,32 +20,31 @@
  */
 package com.atna.marmot
 
+import build.marmot.mdk.Mdk
+import build.marmot.mdk.MdkUniffiException
+import build.marmot.mdk.ProcessMessageResult
+import build.marmot.mdk.newMdk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Android implementation of MarmotManager wrapping mdk-kotlin.
- *
- * This implementation uses the mdk-kotlin AAR and JNA to provide
- * Marmot encrypted group messaging on Android.
- *
- * Note: This implementation requires the mdk-kotlin library to be available.
- * If the library is not found at runtime, operations will throw exceptions.
- */
+@OptIn(ExperimentalUnsignedTypes::class)
 class MdkMarmotManager : MarmotManager {
-    private var mdk: Any? = null
+    private var mdk: Mdk? = null
+
+    override val isInitialized: Boolean get() = mdk != null
 
     override fun initialize(dbPath: String) {
+        if (mdk != null) return
         try {
-            // Attempt to create MDK instance
-            // mdk = newMdk(dbPath)
-            throw NotImplementedError("MDK initialization not yet implemented - requires mdk-kotlin library")
-        } catch (e: Exception) {
+            java.io.File(dbPath).mkdirs()
+            mdk = newMdk(dbPath)
+        } catch (e: MdkUniffiException) {
             throw IllegalStateException("Failed to initialize Marmot: ${e.message}", e)
         }
     }
 
     override fun close() {
+        mdk?.close()
         mdk = null
     }
 
@@ -54,13 +53,8 @@ class MdkMarmotManager : MarmotManager {
         relays: List<String>,
     ): String =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // return mdk.createKeyPackageForEvent(publicKey, relays)
-                throw NotImplementedError("createKeyPackage not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to create key package: ${e.message}", e)
-            }
+            val result = requireMdk().createKeyPackageForEvent(publicKey, relays)
+            result.keyPackage
         }
 
     override suspend fun createGroup(
@@ -70,153 +64,149 @@ class MdkMarmotManager : MarmotManager {
         description: String,
         relays: List<String>,
         admins: List<String>,
-    ): MarmotGroup =
+    ): MarmotCreateGroupResult =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // val groupJson = mdk.createGroup(creatorKey, memberKeyPackages.toJson(), name, description, relays, admins)
-                // return parseGroupJson(groupJson)
-                throw NotImplementedError("createGroup not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to create group: ${e.message}", e)
-            }
+            val result = requireMdk().createGroup(creatorKey, memberKeyPackages, name, description, relays, admins)
+            MarmotCreateGroupResult(
+                group = result.group.toMarmotGroup(),
+                welcomeEventJsons = result.welcomeRumorsJson,
+            )
         }
 
     override suspend fun getGroups(): List<MarmotGroup> =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // val groupsJson = mdk.getGroups()
-                // return parseGroupsJson(groupsJson)
-                throw NotImplementedError("getGroups not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to get groups: ${e.message}", e)
-            }
+            requireMdk().getGroups().map { it.toMarmotGroup() }
         }
 
     override suspend fun getGroup(groupId: String): MarmotGroup? =
         withContext(Dispatchers.IO) {
-            requireInitialized()
             try {
-                // val groupJson = mdk.getGroup(groupId) ?: return@withContext null
-                // return parseGroupJson(groupJson)
-                throw NotImplementedError("getGroup not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to get group: ${e.message}", e)
+                requireMdk().getGroup(groupId)?.toMarmotGroup()
+            } catch (e: MdkUniffiException) {
+                null
             }
+        }
+
+    override suspend fun getMembers(groupId: String): List<String> =
+        withContext(Dispatchers.IO) {
+            requireMdk().getMembers(groupId)
         }
 
     override suspend fun addMembers(
         groupId: String,
         keyPackages: List<String>,
-    ) = withContext(Dispatchers.IO) {
-        requireInitialized()
-        try {
-            // mdk.addMembers(groupId, keyPackages.toJson())
-            throw NotImplementedError("addMembers not yet implemented - requires mdk-kotlin library")
-        } catch (e: Exception) {
-            throw IllegalStateException("Failed to add members: ${e.message}", e)
+    ): List<String> =
+        withContext(Dispatchers.IO) {
+            val result = requireMdk().addMembers(groupId, keyPackages)
+            result.welcomeRumorsJson ?: emptyList()
         }
-    }
 
     override suspend fun removeMembers(
         groupId: String,
         memberKeys: List<String>,
     ) = withContext(Dispatchers.IO) {
-        requireInitialized()
-        try {
-            // mdk.removeMembers(groupId, memberKeys)
-            throw NotImplementedError("removeMembers not yet implemented - requires mdk-kotlin library")
-        } catch (e: Exception) {
-            throw IllegalStateException("Failed to remove members: ${e.message}", e)
-        }
+        requireMdk().removeMembers(groupId, memberKeys)
+        Unit
     }
 
     override suspend fun sendMessage(
         groupId: String,
         senderKey: String,
         content: String,
+        kind: Int,
+        tags: List<List<String>>,
     ): String =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // return mdk.createMessage(groupId, senderKey, content)
-                throw NotImplementedError("sendMessage not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to send message: ${e.message}", e)
-            }
+            requireMdk().createMessage(groupId, senderKey, content, kind.toUShort(), tags)
         }
 
-    override suspend fun processIncomingMessage(eventJson: String): MarmotMessage =
+    override suspend fun processIncomingMessage(eventJson: String): MarmotProcessResult =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // val messageJson = mdk.processMessage(eventJson)
-                // return parseMessageJson(messageJson)
-                throw NotImplementedError("processIncomingMessage not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to process message: ${e.message}", e)
+            when (val result = requireMdk().processMessage(eventJson)) {
+                is ProcessMessageResult.ApplicationMessage ->
+                    MarmotProcessResult.Message(result.message.toMarmotMessage())
+                is ProcessMessageResult.Commit ->
+                    MarmotProcessResult.Commit(result.mlsGroupId)
+                is ProcessMessageResult.Proposal ->
+                    MarmotProcessResult.Proposal(
+                        evolutionEventJson = result.result.evolutionEventJson,
+                        welcomeEventJsons = result.result.welcomeRumorsJson ?: emptyList(),
+                        mlsGroupId = result.result.mlsGroupId,
+                    )
+                is ProcessMessageResult.ExternalJoinProposal ->
+                    MarmotProcessResult.Commit(result.mlsGroupId)
+                is ProcessMessageResult.Unprocessable ->
+                    MarmotProcessResult.Unprocessable(result.mlsGroupId)
             }
         }
 
     override suspend fun getMessages(groupId: String): List<MarmotMessage> =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // val messagesJson = mdk.getMessages(groupId)
-                // return parseMessagesJson(messagesJson)
-                throw NotImplementedError("getMessages not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to get messages: ${e.message}", e)
-            }
+            requireMdk().getMessages(groupId).map { it.toMarmotMessage() }
         }
 
     override suspend fun getPendingInvites(): List<MarmotInvite> =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // val welcomesJson = mdk.getPendingWelcomes()
-                // return parseInvitesJson(welcomesJson)
-                throw NotImplementedError("getPendingInvites not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to get pending invites: ${e.message}", e)
-            }
+            requireMdk().getPendingWelcomes().map { it.toMarmotInvite() }
         }
 
-    override suspend fun acceptInvite(welcomeJson: String): MarmotGroup =
+    override suspend fun processWelcome(
+        eventJson: String,
+        ourPubkey: String,
+    ): MarmotInvite =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // val groupJson = mdk.acceptWelcome(welcomeJson)
-                // return parseGroupJson(groupJson)
-                throw NotImplementedError("acceptInvite not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to accept invite: ${e.message}", e)
-            }
+            requireMdk().processWelcome(eventJson, ourPubkey).toMarmotInvite()
         }
 
-    override suspend fun declineInvite(welcomeJson: String) =
+    override suspend fun acceptInvite(welcomeId: String) =
         withContext(Dispatchers.IO) {
-            requireInitialized()
-            try {
-                // mdk.declineWelcome(welcomeJson)
-                throw NotImplementedError("declineInvite not yet implemented - requires mdk-kotlin library")
-            } catch (e: Exception) {
-                throw IllegalStateException("Failed to decline invite: ${e.message}", e)
-            }
+            requireMdk().acceptWelcome(welcomeId)
         }
 
-    private fun requireInitialized() {
-        if (mdk == null) {
-            throw IllegalStateException("MarmotManager not initialized. Call initialize() first.")
+    override suspend fun declineInvite(welcomeId: String) =
+        withContext(Dispatchers.IO) {
+            requireMdk().declineWelcome(welcomeId)
         }
-    }
 
-    // TODO: Implement JSON parsing helpers when mdk-kotlin is available
-    // private fun parseGroupJson(json: String): MarmotGroup { ... }
-    // private fun parseGroupsJson(json: String): List<MarmotGroup> { ... }
-    // private fun parseMessageJson(json: String): MarmotMessage { ... }
-    // private fun parseMessagesJson(json: String): List<MarmotMessage> { ... }
-    // private fun parseInvitesJson(json: String): List<MarmotInvite> { ... }
-    // private fun List<String>.toJson(): String { ... }
+    private fun requireMdk(): Mdk = mdk ?: throw IllegalStateException("MarmotManager not initialized. Call initialize() first.")
+
+    private fun build.marmot.mdk.Group.toMarmotGroup(): MarmotGroup =
+        MarmotGroup(
+            id = mlsGroupId,
+            nostrGroupId = nostrGroupId,
+            name = name,
+            description = description,
+            adminPubkeys = adminPubkeys,
+            lastMessageAt =
+                lastMessageAt?.toLong()?.let { ts ->
+                    if (ts > 0L) ts else null
+                },
+            state = state,
+        )
+
+    private fun build.marmot.mdk.Message.toMarmotMessage(): MarmotMessage =
+        MarmotMessage(
+            id = id,
+            groupId = mlsGroupId,
+            nostrGroupId = nostrGroupId,
+            eventId = eventId,
+            senderKey = senderPubkey,
+            content = eventJson,
+            timestamp = processedAt.toLong(),
+            kind = kind.toInt(),
+            state = state,
+        )
+
+    private fun build.marmot.mdk.Welcome.toMarmotInvite(): MarmotInvite =
+        MarmotInvite(
+            welcomeId = id,
+            groupId = mlsGroupId,
+            nostrGroupId = nostrGroupId,
+            groupName = groupName,
+            groupDescription = groupDescription,
+            inviterKey = welcomer,
+            memberCount = memberCount.toInt(),
+            relays = groupRelays,
+            state = state,
+        )
 }

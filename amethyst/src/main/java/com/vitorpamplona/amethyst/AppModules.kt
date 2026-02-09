@@ -25,6 +25,7 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import com.atna.ndb.EventPersistenceService
 import com.vitorpamplona.amethyst.model.LocalCache
 import com.vitorpamplona.amethyst.model.accountsCache.AccountCacheState
 import com.vitorpamplona.amethyst.model.nip03Timestamp.IncomingOtsEventVerifier
@@ -59,6 +60,7 @@ import com.vitorpamplona.amethyst.ui.screen.UiSettingsState
 import com.vitorpamplona.amethyst.ui.tor.TorManager
 import com.vitorpamplona.quartz.nip01Core.relay.client.INostrClient
 import com.vitorpamplona.quartz.nip01Core.relay.client.NostrClient
+import com.vitorpamplona.quartz.nip01Core.relay.client.accessories.EventCollector
 import com.vitorpamplona.quartz.nip01Core.relay.client.accessories.RelayLogger
 import com.vitorpamplona.quartz.nip01Core.relay.client.accessories.RelayOfflineTracker
 import com.vitorpamplona.quartz.nip01Core.relay.client.reqs.stats.RelayReqStats
@@ -190,6 +192,27 @@ class AppModules(
     // Verifies and inserts in the cache from all relays, all subscriptions
     val cacheClientConnector = CacheClientConnector(client, cache)
 
+    // Persists all relay events to LMDB for offline access
+    val eventPersistenceService = EventPersistenceService(applicationIOScope)
+    val persistingCollector =
+        EventCollector(client) { event, _ ->
+            eventPersistenceService.persistEvent(event)
+        }
+
+    // Marmot encrypted group DMs
+    val marmotManager: com.atna.marmot.MarmotManager = com.atna.marmot.MdkMarmotManager()
+    val marmotRouter = com.atna.marmot.MarmotEventRouter(marmotManager, applicationIOScope)
+    val marmotCollector =
+        EventCollector(client) { event, _ ->
+            when (event) {
+                is com.vitorpamplona.quartz.marmotMls.MarmotGroupEvent,
+                is com.vitorpamplona.quartz.marmotMls.MarmotWelcomeEvent,
+                is com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageEvent,
+                is com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageRelayListEvent,
+                -> marmotRouter.onMarmotEvent(event)
+            }
+        }
+
     // Show messages from the Relay and controls their dismissal
     val notifyCoordinator = NotifyCoordinator(client)
 
@@ -271,6 +294,38 @@ class AppModules(
     fun initiate(appContext: Context) {
         Thread.setDefaultUncaughtExceptionHandler(UnexpectedCrashSaver(crashReportCache, applicationIOScope))
 
+        // Start LMDB event persistence and rehydrate cache from persisted events
+        applicationIOScope.launch {
+            val dbPath = appContext.filesDir.absolutePath + "/nostrdb"
+            eventPersistenceService.start(dbPath)
+
+            // Load recent events from LMDB back into the in-memory cache
+            val oneDayAgo =
+                com.vitorpamplona.quartz.utils.TimeUtils
+                    .now() - 86400
+            val recentEvents =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(since = oneDayAgo, limit = 5000),
+                )
+            recentEvents.sortedBy { it.createdAt }.forEach { event ->
+                cache.justConsume(event, null, false)
+            }
+        }
+
+        // Initialize Marmot encrypted group DMs
+        applicationIOScope.launch {
+            try {
+                val marmotPath = appContext.filesDir.absolutePath + "/marmot"
+                marmotManager.initialize(marmotPath)
+                marmotRouter.refreshGroups()
+                marmotRouter.refreshInvites()
+            } catch (e: Exception) {
+                com.vitorpamplona.quartz.utils.Log
+                    .w("AppModules", "Marmot init failed: ${e.message}")
+            }
+        }
+
         applicationIOScope.launch {
             // loads main account quickly.
             LocalPreferences.loadAccountConfigFromEncryptedStorage()
@@ -297,6 +352,10 @@ class AppModules(
 
     fun terminate(appContext: Context) {
         pokeyReceiver.unregister(appContext)
+        marmotCollector.destroy()
+        marmotManager.close()
+        persistingCollector.destroy()
+        eventPersistenceService.stop()
         applicationIOScope.cancel("Application onTerminate $appContext")
         applicationDefaultScope.cancel("Application onTerminate $appContext")
         accountsCache.clear()

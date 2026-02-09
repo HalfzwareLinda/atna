@@ -83,6 +83,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.atna.bugreport.CrashHandler
 import com.atna.bugreport.GitHubIssueSubmitter
 import com.atna.bugreport.GitHubTokenProvider
+import com.atna.ndb.EventPersistenceService
 import com.vitorpamplona.amethyst.commons.ui.screens.MessagesPlaceholder
 import com.vitorpamplona.amethyst.desktop.account.AccountManager
 import com.vitorpamplona.amethyst.desktop.account.AccountState
@@ -104,6 +105,7 @@ import com.vitorpamplona.amethyst.desktop.ui.UserProfileScreen
 import com.vitorpamplona.amethyst.desktop.ui.ZapFeedback
 import com.vitorpamplona.amethyst.desktop.ui.profile.ProfileInfoCard
 import com.vitorpamplona.amethyst.desktop.ui.relay.RelayStatusCard
+import com.vitorpamplona.quartz.nip01Core.relay.client.accessories.EventCollector
 import com.vitorpamplona.quartz.nip47WalletConnect.Nip47WalletConnect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -175,7 +177,7 @@ fun main() {
         Window(
             onCloseRequest = ::exitApplication,
             state = windowState,
-            title = "Amethyst",
+            title = "ATNA",
         ) {
             MenuBar {
                 Menu("File") {
@@ -240,7 +242,7 @@ fun main() {
                     Item("Notifications", onClick = { })
                 }
                 Menu("Help") {
-                    Item("About Amethyst", onClick = { })
+                    Item("About ATNA", onClick = { })
                     Item("Keyboard Shortcuts", onClick = { })
                 }
             }
@@ -305,6 +307,13 @@ fun App(
     val accountState by accountManager.accountState.collectAsState()
     val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main) }
 
+    // LMDB event persistence
+    val eventPersistenceService = remember { EventPersistenceService(CoroutineScope(SupervisorJob() + Dispatchers.IO)) }
+
+    // Marmot encrypted group DMs (stub on desktop — native library is Android-only)
+    val marmotManager = remember { com.atna.marmot.StubMarmotManager() as com.atna.marmot.MarmotManager }
+    val marmotRouter = remember { com.atna.marmot.MarmotEventRouter(marmotManager, CoroutineScope(SupervisorJob() + Dispatchers.IO)) }
+
     // Subscriptions coordinator for metadata/reactions loading
     val subscriptionsCoordinator =
         remember(relayManager, localCache) {
@@ -323,6 +332,16 @@ fun App(
             accountManager.loadSavedAccount()
         }
 
+        // Start LMDB event persistence
+        val dbPath = System.getProperty("user.home") + "/.atna/nostrdb"
+        java.io.File(dbPath).mkdirs()
+        eventPersistenceService.start(dbPath)
+
+        val persistingCollector =
+            EventCollector(relayManager.client) { event, _ ->
+                eventPersistenceService.persistEvent(event)
+            }
+
         relayManager.addDefaultRelays()
         relayManager.connect()
 
@@ -330,13 +349,24 @@ fun App(
         subscriptionsCoordinator.start()
 
         onDispose {
+            persistingCollector.destroy()
+            eventPersistenceService.stop()
             subscriptionsCoordinator.clear()
             relayManager.disconnect()
         }
     }
 
     MaterialTheme(
-        colorScheme = darkColorScheme(),
+        colorScheme =
+            darkColorScheme(
+                primary = Color(0xFF00E5CC),
+                secondary = Color(0xFF9370DB),
+                tertiary = Color(0xFF9370DB),
+                background = Color(0xFF0D0D1A),
+                surface = Color(0xFF121228),
+                surfaceDim = Color(0xFF0D0D1A),
+                surfaceVariant = Color(0xFF1A1A2E),
+            ),
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),

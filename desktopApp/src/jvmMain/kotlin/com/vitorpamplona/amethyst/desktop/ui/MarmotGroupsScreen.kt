@@ -68,7 +68,7 @@ fun DesktopMarmotGroupsScreen() {
         Spacer(Modifier.height(4.dp))
 
         Text(
-            text = "Coming soon — requires mdk-kotlin integration",
+            text = "Available on Android — desktop native library support coming soon",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

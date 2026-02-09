@@ -36,6 +36,7 @@ lazysodiumAndroid = "5.2.0"
 lazysodiumJava = "5.2.0"
 lifecycleRuntimeKtx = "2.10.0"
 lightcompressor-enhanced = "1.6.0"
+mdkKotlin = "0.5.2"
 markdown = "f92ef49c9d"
 media3 = "1.9.0"
 mockk = "1.14.7"
@@ -131,6 +132,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-serialization-cbor = { module = "org.jetbrains.kotlinx:kotlinx-serialization-cbor", version.ref = "kotlinxSerialization" }
 lazysodium-java = { group = "com.goterl", name = "lazysodium-java", version.ref = "lazysodiumJava" }
 lazysodium-android = { group = "com.goterl", name = "lazysodium-android", version.ref = "lazysodiumAndroid" }
+mdk-kotlin = { group = "com.github.marmot-protocol", name = "mdk-kotlin", version.ref = "mdkKotlin" }
 markdown-commonmark = { group = "com.github.vitorpamplona.compose-richtext", name = "richtext-commonmark", version.ref = "markdown" }
 markdown-ui = { group = "com.github.vitorpamplona.compose-richtext", name = "richtext-ui", version.ref = "markdown" }
 markdown-ui-material3 = { group = "com.github.vitorpamplona.compose-richtext", name = "richtext-ui-material3", version.ref = "markdown" }

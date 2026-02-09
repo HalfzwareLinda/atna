@@ -24,47 +24,75 @@ package com.atna.marmot
  * Represents a Marmot encrypted group.
  *
  * @property id The MLS group ID
+ * @property nostrGroupId The Nostr-level group identifier
  * @property name Group name
  * @property description Group description
- * @property memberCount Number of members in the group
- * @property lastMessageAt Timestamp of last message (milliseconds since epoch), null if no messages
+ * @property adminPubkeys Public keys of group admins
+ * @property lastMessageAt Timestamp of last message (seconds since epoch), null if no messages
+ * @property state Group state (e.g. "active")
  */
 data class MarmotGroup(
     val id: String,
+    val nostrGroupId: String = "",
     val name: String,
     val description: String,
-    val memberCount: Int,
-    val lastMessageAt: Long?,
-)
+    val adminPubkeys: List<String> = emptyList(),
+    val lastMessageAt: Long? = null,
+    val state: String = "active",
+) {
+    @Deprecated("Use adminPubkeys.size or getMembers() instead", ReplaceWith("0"))
+    val memberCount: Int get() = 0
+}
 
 /**
  * Represents a message in a Marmot group.
  *
  * @property id Message ID
  * @property groupId The MLS group ID this message belongs to
+ * @property nostrGroupId The Nostr-level group identifier
+ * @property eventId The Nostr event ID for this message
  * @property senderKey Public key of the sender
- * @property content Decrypted message content
- * @property timestamp Message timestamp (milliseconds since epoch)
+ * @property content Decrypted message content (event JSON)
+ * @property timestamp Message timestamp (seconds since epoch)
+ * @property kind Nostr event kind
+ * @property state Message state
  */
 data class MarmotMessage(
     val id: String,
     val groupId: String,
+    val nostrGroupId: String = "",
+    val eventId: String = "",
     val senderKey: String,
     val content: String,
     val timestamp: Long,
+    val kind: Int = 1,
+    val state: String = "received",
 )
 
 /**
  * Represents a pending invitation to a Marmot group.
  *
+ * @property welcomeId The welcome ID (used for accept/decline)
  * @property groupId The MLS group ID
+ * @property nostrGroupId The Nostr-level group identifier
  * @property groupName Name of the group being invited to
+ * @property groupDescription Description of the group
  * @property inviterKey Public key of the user who sent the invite
- * @property welcomeJson Raw welcome message JSON from the protocol
+ * @property memberCount Number of members in the group
+ * @property relays Relay URLs for the group
+ * @property state Invite state
  */
 data class MarmotInvite(
+    val welcomeId: String,
     val groupId: String,
+    val nostrGroupId: String = "",
     val groupName: String,
+    val groupDescription: String = "",
     val inviterKey: String,
-    val welcomeJson: String,
-)
+    val memberCount: Int = 0,
+    val relays: List<String> = emptyList(),
+    val state: String = "pending",
+) {
+    @Deprecated("Use welcomeId instead", ReplaceWith("welcomeId"))
+    val welcomeJson: String get() = welcomeId
+}

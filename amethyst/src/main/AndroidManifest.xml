@@ -64,7 +64,7 @@
         android:label="@string/app_name"
         android:enableOnBackInvokedCallback="true"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Amethyst"
+        android:theme="@style/Theme.ATNA"
         android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
@@ -77,14 +77,14 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout"
             android:taskAffinity=".service.playback.pip.PipVideoActivity"
-            android:theme="@style/Theme.Amethyst">
+            android:theme="@style/Theme.ATNA">
 
-            <intent-filter android:label="Amethyst">
+            <intent-filter android:label="ATNA">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <intent-filter android:label="Amethyst">
+            <intent-filter android:label="ATNA">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -92,13 +92,13 @@
                 <data android:scheme="amethyst" />
             </intent-filter>
 
-            <intent-filter android:label="Amethyst">
+            <intent-filter android:label="ATNA">
                 <action android:name="android.nfc.action.NDEF_DISCOVERED"/>
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="nostr" />
             </intent-filter>
 
-            <intent-filter android:label="Amethyst">
+            <intent-filter android:label="ATNA">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

@@ -59,6 +59,10 @@ import com.vitorpamplona.quartz.experimental.publicMessages.PublicMessageEvent
 import com.vitorpamplona.quartz.experimental.relationshipStatus.ContactCardEvent
 import com.vitorpamplona.quartz.experimental.trustedAssertions.list.TrustProviderListEvent
 import com.vitorpamplona.quartz.experimental.zapPolls.PollNoteEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotGroupEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageRelayListEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotWelcomeEvent
 import com.vitorpamplona.quartz.nip01Core.core.Address
 import com.vitorpamplona.quartz.nip01Core.core.AddressableEvent
 import com.vitorpamplona.quartz.nip01Core.core.BaseAddressableEvent
@@ -2931,6 +2935,10 @@ object LocalCache : ILocalCache, ICacheProvider {
                 is LnZapPaymentRequestEvent -> consume(event, relay, wasVerified)
                 is LnZapPaymentResponseEvent -> consume(event, relay, wasVerified)
                 is LongTextNoteEvent -> consume(event, relay, wasVerified)
+                is MarmotGroupEvent -> consumeRegularEvent(event, relay, wasVerified)
+                is MarmotKeyPackageEvent -> consumeRegularEvent(event, relay, wasVerified)
+                is MarmotKeyPackageRelayListEvent -> consumeRegularEvent(event, relay, wasVerified)
+                is MarmotWelcomeEvent -> consumeRegularEvent(event, relay, wasVerified)
                 is MetadataEvent -> consume(event, relay, wasVerified)
                 is MuteListEvent -> consume(event, relay, wasVerified)
                 is NNSEvent -> consume(event, relay, wasVerified)
