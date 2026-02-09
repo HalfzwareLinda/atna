@@ -28,6 +28,13 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":quartz"))
+            implementation(libs.kotlinx.coroutines.core)
         }
+
+        // mdk-kotlin dependencies will be added when MDK integration is implemented.
+        // For now, the MdkMarmotManager stubs don't call MDK, so no dependency needed.
+        // When ready, add per-platform:
+        //   androidMain: implementation("com.github.marmot-protocol:mdk-kotlin:0.5.2@aar")
+        //   jvmMain: implementation("com.github.marmot-protocol:mdk-kotlin:0.5.2")
     }
 }

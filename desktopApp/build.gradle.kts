@@ -33,6 +33,11 @@ dependencies {
     // Commons library
     implementation(project(":commons"))
 
+    // ATNA modules
+    implementation(project(":ndb-bridge"))
+    implementation(project(":marmot-bridge"))
+    implementation(project(":bug-reporter"))
+
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.swing)

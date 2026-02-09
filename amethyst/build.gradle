@@ -237,6 +237,9 @@ dependencies {
     implementation project(path: ':quartz')
     implementation project(path: ':commons')
     implementation project(path: ':ammolite')
+    implementation project(path: ':ndb-bridge')
+    implementation project(path: ':marmot-bridge')
+    implementation project(path: ':bug-reporter')
     implementation libs.androidx.core.ktx
     implementation libs.androidx.activity.compose
 

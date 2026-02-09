@@ -28,6 +28,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":quartz"))
+            implementation(libs.kotlinx.coroutines.core)
         }
     }
 }

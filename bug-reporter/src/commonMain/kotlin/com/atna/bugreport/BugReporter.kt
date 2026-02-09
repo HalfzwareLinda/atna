@@ -20,10 +20,43 @@
  */
 package com.atna.bugreport
 
+import kotlinx.serialization.Serializable
+
 /**
- * In-app bug reporter that creates GitHub Issues.
- * Collects device info, logs, and optional screenshots.
+ * Represents a bug report with all relevant information.
  *
- * TODO: Phase 4 implementation
+ * @property title Brief summary of the bug
+ * @property description Detailed description of the bug
+ * @property stepsToReproduce Steps to reproduce the bug
+ * @property appVersion Version of the app where the bug occurred
+ * @property platform Platform information (e.g., "Android 14" or "Ubuntu 24.04")
+ * @property device Device information (e.g., "Pixel 6" or hostname)
+ * @property storageBackend Storage backend being used (default: "SQLite")
+ * @property logs Optional log output
+ * @property stackTrace Optional stack trace if available
  */
-class BugReporter
+@Serializable
+data class BugReport(
+    val title: String,
+    val description: String,
+    val stepsToReproduce: String = "",
+    val appVersion: String,
+    val platform: String,
+    val device: String,
+    val storageBackend: String = "SQLite",
+    val logs: String? = null,
+    val stackTrace: String? = null,
+)
+
+/**
+ * Interface for submitting bug reports.
+ */
+interface BugReportSubmitter {
+    /**
+     * Submits a bug report.
+     *
+     * @param report The bug report to submit
+     * @return Result containing the issue URL on success, or an error on failure
+     */
+    suspend fun submit(report: BugReport): Result<String>
+}

@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
+    alias(libs.plugins.serialization)
 }
 
 kotlin {
@@ -26,8 +27,29 @@ kotlin {
     }
 
     sourceSets {
-        commonMain.dependencies {
-            implementation(project(":quartz"))
+        commonMain {
+            dependencies {
+                implementation(project(":quartz"))
+                implementation(libs.kotlinx.serialization.json)
+                implementation(libs.kotlinx.coroutines.core)
+            }
+        }
+
+        // Must be defined before androidMain and jvmMain
+        val jvmAndroid = create("jvmAndroid") {
+            dependsOn(commonMain.get())
+
+            dependencies {
+                implementation(libs.okhttp)
+            }
+        }
+
+        jvmMain {
+            dependsOn(jvmAndroid)
+        }
+
+        androidMain {
+            dependsOn(jvmAndroid)
         }
     }
 }
