@@ -20,22 +20,31 @@
  */
 package com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.marmotDM
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,8 +52,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,11 +67,14 @@ import com.atna.marmot.MarmotInvite
 import com.vitorpamplona.amethyst.Amethyst
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.ui.navigation.navs.INav
+import com.vitorpamplona.amethyst.ui.navigation.routes.Route
 import com.vitorpamplona.amethyst.ui.navigation.topbars.TopBarWithBackButton
+import kotlinx.coroutines.launch
 
 @Composable
 fun MarmotGroupListScreen(nav: INav) {
     val router = Amethyst.instance.marmotRouter
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         router.refreshGroups()
@@ -75,31 +92,96 @@ fun MarmotGroupListScreen(nav: INav) {
         val groups by router.groups.collectAsState()
         val invites by router.invites.collectAsState()
 
-        if (groups.isEmpty() && invites.isEmpty()) {
-            EmptyGroupsPlaceholder(Modifier.padding(padding))
-        } else {
-            LazyColumn(
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+        ) {
+            // Marmot watermark in background
+            MarmotWatermark(
                 modifier =
                     Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-            ) {
-                if (invites.isNotEmpty()) {
+                        .size(240.dp)
+                        .align(Alignment.Center)
+                        .alpha(0.05f),
+            )
+
+            if (groups.isEmpty() && invites.isEmpty()) {
+                EmptyGroupsPlaceholder(
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    if (invites.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.marmot_pending_invites),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                        items(invites, key = { it.welcomeId }) { invite ->
+                            InviteItem(
+                                invite = invite,
+                                onAccept = {
+                                    scope.launch {
+                                        try {
+                                            router.acceptInvite(invite.welcomeId)
+                                        } catch (e: Exception) {
+                                            System.err.println("Accept invite failed: ${e.message}")
+                                        }
+                                    }
+                                },
+                                onDecline = {
+                                    scope.launch {
+                                        try {
+                                            router.declineInvite(invite.welcomeId)
+                                        } catch (e: Exception) {
+                                            System.err.println("Decline invite failed: ${e.message}")
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+                    }
+
+                    if (groups.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.marmot_your_groups),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                        items(groups, key = { it.id }) { group ->
+                            GroupItem(
+                                group = group,
+                                onClick = {
+                                    nav.nav(Route.MarmotConversation(group.id, group.name))
+                                },
+                            )
+                        }
+                    }
+
+                    // Powered by Marmot footer
                     item {
                         Text(
-                            text = "Pending Invites",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(16.dp),
+                            text = stringResource(R.string.marmot_powered_by),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
-                    items(invites) { invite ->
-                        InviteItem(invite)
-                    }
-                    item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
-                }
-                items(groups) { group ->
-                    GroupItem(group)
                 }
             }
         }
@@ -109,37 +191,47 @@ fun MarmotGroupListScreen(nav: INav) {
 @Composable
 private fun EmptyGroupsPlaceholder(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = Icons.Outlined.Lock,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 16.dp),
+            modifier = Modifier.size(48.dp),
         )
+        Spacer(Modifier.height(16.dp))
         Text(
             text = stringResource(R.string.marmot_no_groups),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(8.dp))
         Text(
             text = "Join or create an encrypted group to get started",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.marmot_powered_by),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
         )
     }
 }
 
 @Composable
-private fun GroupItem(group: MarmotGroup) {
+private fun GroupItem(
+    group: MarmotGroup,
+    onClick: () -> Unit,
+) {
     Card(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Row(
@@ -169,12 +261,25 @@ private fun GroupItem(group: MarmotGroup) {
                     )
                 }
             }
+            // Chevron indicator
+            Icon(
+                imageVector = Icons.Default.Groups,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
 
 @Composable
-private fun InviteItem(invite: MarmotInvite) {
+private fun InviteItem(
+    invite: MarmotInvite,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    var processing by remember { mutableStateOf(false) }
+
     Card(
         modifier =
             Modifier
@@ -199,10 +304,44 @@ private fun InviteItem(invite: MarmotInvite) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
                 Text(
-                    text = "${invite.memberCount} members",
+                    text = stringResource(R.string.marmot_members_count, invite.memberCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                 )
+            }
+            if (processing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                // Accept button
+                IconButton(
+                    onClick = {
+                        processing = true
+                        onAccept()
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = stringResource(R.string.marmot_accept),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                // Decline button
+                IconButton(
+                    onClick = {
+                        processing = true
+                        onDecline()
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.marmot_decline),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }

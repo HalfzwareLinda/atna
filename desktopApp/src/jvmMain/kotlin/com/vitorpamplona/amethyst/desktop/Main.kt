@@ -20,6 +20,9 @@
  */
 package com.vitorpamplona.amethyst.desktop
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,33 +33,41 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.darkColorScheme
@@ -71,10 +82,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
@@ -111,6 +134,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okio.Path.Companion.toOkioPath
 
 private val isMacOS = System.getProperty("os.name").lowercase().contains("mac")
 
@@ -148,10 +172,10 @@ sealed class DesktopScreen {
 }
 
 fun main() {
-    val crashDir = System.getProperty("user.home") + "/.atna"
-    java.io.File(crashDir).mkdirs()
+    val atnaDir = System.getProperty("user.home") + "/.atna"
+    java.io.File(atnaDir).mkdirs()
     CrashHandler(
-        crashFilePath = "$crashDir/crash_report.json",
+        crashFilePath = "$atnaDir/crash_report.json",
         appVersion = "1.0.0-dev",
         platform = "Linux ${System.getProperty("os.version")}",
         device =
@@ -160,7 +184,27 @@ fun main() {
                 .hostName,
     ).install()
 
-    val pendingCrash = CrashHandler.loadPendingCrashReport("$crashDir/crash_report.json")
+    val pendingCrash = CrashHandler.loadPendingCrashReport("$atnaDir/crash_report.json")
+
+    // Configure Coil image loader with disk cache for profile pictures
+    val imageCacheDir = "$atnaDir/image_cache"
+    java.io.File(imageCacheDir).mkdirs()
+    coil3.SingletonImageLoader.setSafe {
+        coil3.ImageLoader
+            .Builder(it)
+            .diskCache {
+                coil3.disk.DiskCache
+                    .Builder()
+                    .directory(java.io.File(imageCacheDir).toOkioPath())
+                    .maxSizeBytes(256L * 1024 * 1024) // 256 MB
+                    .build()
+            }.memoryCache {
+                coil3.memory.MemoryCache
+                    .Builder()
+                    .maxSizeBytes(64L * 1024 * 1024) // 64 MB
+                    .build()
+            }.build()
+    }
 
     application {
         val windowState =
@@ -278,11 +322,11 @@ fun main() {
                                 ).submit(submittedReport)
                             }
                         }
-                        CrashHandler.clearPendingCrashReport("$crashDir/crash_report.json")
+                        CrashHandler.clearPendingCrashReport("$atnaDir/crash_report.json")
                         crashReport = null
                     },
                     onDismiss = {
-                        CrashHandler.clearPendingCrashReport("$crashDir/crash_report.json")
+                        CrashHandler.clearPendingCrashReport("$atnaDir/crash_report.json")
                         crashReport = null
                     },
                 )
@@ -332,10 +376,55 @@ fun App(
             accountManager.loadSavedAccount()
         }
 
-        // Start LMDB event persistence
+        // Start LMDB event persistence and rehydrate from persisted events
         val dbPath = System.getProperty("user.home") + "/.atna/nostrdb"
         java.io.File(dbPath).mkdirs()
         eventPersistenceService.start(dbPath)
+
+        // Rehydrate local cache from LMDB (profiles first for display names)
+        scope.launch(Dispatchers.IO) {
+            // Phase 1: Load profiles so names/pictures appear immediately
+            val profiles =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(0), limit = 10000),
+                )
+            profiles.forEach { event ->
+                if (event is com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent) {
+                    localCache.consumeMetadata(event)
+                }
+            }
+
+            // Phase 2: Load recent notes so feed has content on startup
+            val oneDayAgo =
+                com.vitorpamplona.quartz.utils.TimeUtils
+                    .now() - 86400
+            val notes =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(1), since = oneDayAgo, limit = 3000),
+                )
+            notes.sortedBy { it.createdAt }.forEach { event ->
+                val author = localCache.getOrCreateUser(event.pubKey)
+                val note = localCache.getOrCreateNote(event.id)
+                note.loadEvent(event, author, emptyList())
+            }
+
+            // Phase 3: Trust provider lists (10040) and contact cards (30382)
+            val trustEvents =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(10040, 30382), limit = 2000),
+                )
+            trustEvents.sortedBy { it.createdAt }.forEach { event ->
+                val author = localCache.getOrCreateUser(event.pubKey)
+                val note = localCache.getOrCreateNote(event.id)
+                note.loadEvent(event, author, emptyList())
+            }
+
+            // Prune old events
+            eventPersistenceService.prune()
+        }
 
         val persistingCollector =
             EventCollector(relayManager.client) { event, _ ->
@@ -370,7 +459,7 @@ fun App(
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Color.Transparent,
         ) {
             when (accountState) {
                 is AccountState.LoggedOut -> {
@@ -386,6 +475,11 @@ fun App(
                     // Load NWC connection on first composition
                     LaunchedEffect(Unit) {
                         accountManager.loadNwcConnection()
+                    }
+
+                    // Subscribe to trust provider list (NIP-85) for logged-in user
+                    LaunchedEffect(account.pubKeyHex) {
+                        subscriptionsCoordinator.loadTrustProviderList(account.pubKeyHex)
                     }
 
                     MainContent(
@@ -431,6 +525,7 @@ fun MainContent(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val connectedRelays by relayManager.connectedRelays.collectAsState()
 
     val onZapFeedback: (ZapFeedback) -> Unit = { feedback ->
         scope.launch {
@@ -446,208 +541,209 @@ fun MainContent(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            // Dark gradient background that shows through transparent sidebars
+            drawRect(
+                brush =
+                    Brush.linearGradient(
+                        colors =
+                            listOf(
+                                Color(0xFF0A0A1A),
+                                Color(0xFF0D0D2A),
+                                Color(0xFF121235),
+                                Color(0xFF0D0D2A),
+                                Color(0xFF0A0A1A),
+                            ),
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, size.height),
+                    ),
+            )
+            // Subtle radial glow in center-top area
+            drawCircle(
+                brush =
+                    Brush.radialGradient(
+                        colors =
+                            listOf(
+                                Color(0x15663399),
+                                Color(0x08442266),
+                                Color.Transparent,
+                            ),
+                        center = Offset(size.width * 0.5f, size.height * 0.2f),
+                        radius = size.width * 0.6f,
+                    ),
+            )
+        },
+    ) {
+        // Three-column layout spanning the full window height
         Row(Modifier.fillMaxSize()) {
-            // Sidebar Navigation
-            NavigationRail(
-                modifier = Modifier.width(80.dp).fillMaxHeight(),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Spacer(Modifier.height(16.dp))
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Feed") },
-                    label = { Text("Feed") },
-                    selected = currentScreen == DesktopScreen.Feed,
-                    onClick = { onScreenChange(DesktopScreen.Feed) },
+            // ---- Left column: logo + nav (weight ~0.16) ----
+            Column(modifier = Modifier.weight(0.16f).fillMaxHeight()) {
+                AtnaLeftSidebar(
+                    currentScreen = currentScreen,
+                    onScreenChange = onScreenChange,
                 )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.Article, contentDescription = "Reads") },
-                    label = { Text("Reads") },
-                    selected = currentScreen == DesktopScreen.Reads,
-                    onClick = { onScreenChange(DesktopScreen.Reads) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                    label = { Text("Search") },
-                    selected = currentScreen == DesktopScreen.Search,
-                    onClick = { onScreenChange(DesktopScreen.Search) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(com.vitorpamplona.amethyst.commons.icons.Bookmark, contentDescription = "Bookmarks") },
-                    label = { Text("Bookmarks") },
-                    selected = currentScreen == DesktopScreen.Bookmarks,
-                    onClick = { onScreenChange(DesktopScreen.Bookmarks) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Email, contentDescription = "Messages") },
-                    label = { Text("DMs") },
-                    selected = currentScreen == DesktopScreen.Messages,
-                    onClick = { onScreenChange(DesktopScreen.Messages) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Lock, contentDescription = "Encrypted Groups") },
-                    label = { Text("Groups") },
-                    selected = currentScreen == DesktopScreen.MarmotGroups,
-                    onClick = { onScreenChange(DesktopScreen.MarmotGroups) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Notifications") },
-                    label = { Text("Alerts") },
-                    selected = currentScreen == DesktopScreen.Notifications,
-                    onClick = { onScreenChange(DesktopScreen.Notifications) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-                    label = { Text("Profile") },
-                    selected = currentScreen == DesktopScreen.MyProfile || currentScreen is DesktopScreen.UserProfile,
-                    onClick = { onScreenChange(DesktopScreen.MyProfile) },
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") },
-                    selected = currentScreen == DesktopScreen.Settings,
-                    onClick = { onScreenChange(DesktopScreen.Settings) },
-                )
-
-                NavigationRailItem(
-                    icon = { Icon(Icons.Default.BugReport, contentDescription = "Bug Report") },
-                    label = { Text("Bug") },
-                    selected = currentScreen == DesktopScreen.BugReport,
-                    onClick = { onScreenChange(DesktopScreen.BugReport) },
-                )
-
-                Spacer(Modifier.height(16.dp))
             }
 
-            VerticalDivider()
+            VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-            // Main Content
-            Box(
-                modifier = Modifier.weight(1f).fillMaxHeight().padding(24.dp),
+            // ---- Center column: search bar + content (weight ~0.58) ----
+            Column(
+                modifier = Modifier.weight(0.58f).fillMaxHeight(),
             ) {
-                when (currentScreen) {
-                    DesktopScreen.Feed ->
-                        FeedScreen(
-                            relayManager = relayManager,
-                            localCache = localCache,
-                            account = account,
-                            nwcConnection = nwcConnection,
-                            subscriptionsCoordinator = subscriptionsCoordinator,
-                            onCompose = onShowComposeDialog,
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onNavigateToThread = { noteId ->
-                                onScreenChange(DesktopScreen.Thread(noteId))
-                            },
-                            onZapFeedback = onZapFeedback,
-                        )
-                    DesktopScreen.Reads ->
-                        ReadsScreen(
-                            relayManager = relayManager,
-                            localCache = localCache,
-                            account = account,
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onNavigateToArticle = { noteId ->
-                                onScreenChange(DesktopScreen.Thread(noteId))
-                            },
-                        )
-                    DesktopScreen.Search ->
-                        SearchScreen(
-                            localCache = localCache,
-                            relayManager = relayManager,
-                            subscriptionsCoordinator = subscriptionsCoordinator,
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onNavigateToThread = { noteId ->
-                                onScreenChange(DesktopScreen.Thread(noteId))
-                            },
-                        )
-                    DesktopScreen.Bookmarks ->
-                        BookmarksScreen(
-                            relayManager = relayManager,
-                            localCache = localCache,
-                            account = account,
-                            nwcConnection = nwcConnection,
-                            subscriptionsCoordinator = subscriptionsCoordinator,
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onNavigateToThread = { noteId ->
-                                onScreenChange(DesktopScreen.Thread(noteId))
-                            },
-                            onZapFeedback = onZapFeedback,
-                        )
-                    DesktopScreen.Messages -> MessagesPlaceholder()
-                    DesktopScreen.Notifications -> NotificationsScreen(relayManager, account, subscriptionsCoordinator)
-                    DesktopScreen.MyProfile ->
-                        UserProfileScreen(
-                            pubKeyHex = account.pubKeyHex,
-                            relayManager = relayManager,
-                            localCache = localCache,
-                            account = account,
-                            nwcConnection = nwcConnection,
-                            subscriptionsCoordinator = subscriptionsCoordinator,
-                            onBack = { onScreenChange(DesktopScreen.Feed) },
-                            onCompose = onShowComposeDialog,
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onZapFeedback = onZapFeedback,
-                        )
-                    is DesktopScreen.UserProfile ->
-                        UserProfileScreen(
-                            pubKeyHex = currentScreen.pubKeyHex,
-                            relayManager = relayManager,
-                            localCache = localCache,
-                            account = account,
-                            nwcConnection = nwcConnection,
-                            subscriptionsCoordinator = subscriptionsCoordinator,
-                            onBack = { onScreenChange(DesktopScreen.Feed) },
-                            onCompose = onShowComposeDialog,
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onZapFeedback = onZapFeedback,
-                        )
-                    is DesktopScreen.Thread ->
-                        ThreadScreen(
-                            noteId = currentScreen.noteId,
-                            relayManager = relayManager,
-                            localCache = localCache,
-                            account = account,
-                            nwcConnection = nwcConnection,
-                            subscriptionsCoordinator = subscriptionsCoordinator,
-                            onBack = { onScreenChange(DesktopScreen.Feed) },
-                            onNavigateToProfile = { pubKeyHex ->
-                                onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
-                            },
-                            onNavigateToThread = { noteId ->
-                                onScreenChange(DesktopScreen.Thread(noteId))
-                            },
-                            onZapFeedback = onZapFeedback,
-                            onReply = onShowReplyDialog,
-                        )
-                    DesktopScreen.MarmotGroups -> DesktopMarmotGroupsScreen()
-                    DesktopScreen.Settings -> RelaySettingsScreen(relayManager, account, accountManager)
-                    DesktopScreen.BugReport -> DesktopBugReportScreen()
+                // Search bar header (aligned with center column)
+                AtnaSearchBar(onScreenChange = onScreenChange)
+
+                // Content area
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    when (currentScreen) {
+                        DesktopScreen.Feed ->
+                            FeedScreen(
+                                relayManager = relayManager,
+                                localCache = localCache,
+                                account = account,
+                                nwcConnection = nwcConnection,
+                                subscriptionsCoordinator = subscriptionsCoordinator,
+                                onCompose = onShowComposeDialog,
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onNavigateToThread = { noteId ->
+                                    onScreenChange(DesktopScreen.Thread(noteId))
+                                },
+                                onZapFeedback = onZapFeedback,
+                            )
+                        DesktopScreen.Reads ->
+                            ReadsScreen(
+                                relayManager = relayManager,
+                                localCache = localCache,
+                                account = account,
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onNavigateToArticle = { noteId ->
+                                    onScreenChange(DesktopScreen.Thread(noteId))
+                                },
+                            )
+                        DesktopScreen.Search ->
+                            SearchScreen(
+                                localCache = localCache,
+                                relayManager = relayManager,
+                                subscriptionsCoordinator = subscriptionsCoordinator,
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onNavigateToThread = { noteId ->
+                                    onScreenChange(DesktopScreen.Thread(noteId))
+                                },
+                            )
+                        DesktopScreen.Bookmarks ->
+                            BookmarksScreen(
+                                relayManager = relayManager,
+                                localCache = localCache,
+                                account = account,
+                                nwcConnection = nwcConnection,
+                                subscriptionsCoordinator = subscriptionsCoordinator,
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onNavigateToThread = { noteId ->
+                                    onScreenChange(DesktopScreen.Thread(noteId))
+                                },
+                                onZapFeedback = onZapFeedback,
+                            )
+                        DesktopScreen.Messages -> MessagesPlaceholder()
+                        DesktopScreen.Notifications -> NotificationsScreen(relayManager, localCache, account, subscriptionsCoordinator)
+                        DesktopScreen.MyProfile ->
+                            UserProfileScreen(
+                                pubKeyHex = account.pubKeyHex,
+                                relayManager = relayManager,
+                                localCache = localCache,
+                                account = account,
+                                nwcConnection = nwcConnection,
+                                subscriptionsCoordinator = subscriptionsCoordinator,
+                                onBack = { onScreenChange(DesktopScreen.Feed) },
+                                onCompose = onShowComposeDialog,
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onZapFeedback = onZapFeedback,
+                            )
+                        is DesktopScreen.UserProfile ->
+                            UserProfileScreen(
+                                pubKeyHex = currentScreen.pubKeyHex,
+                                relayManager = relayManager,
+                                localCache = localCache,
+                                account = account,
+                                nwcConnection = nwcConnection,
+                                subscriptionsCoordinator = subscriptionsCoordinator,
+                                onBack = { onScreenChange(DesktopScreen.Feed) },
+                                onCompose = onShowComposeDialog,
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onZapFeedback = onZapFeedback,
+                            )
+                        is DesktopScreen.Thread ->
+                            ThreadScreen(
+                                noteId = currentScreen.noteId,
+                                relayManager = relayManager,
+                                localCache = localCache,
+                                account = account,
+                                nwcConnection = nwcConnection,
+                                subscriptionsCoordinator = subscriptionsCoordinator,
+                                onBack = { onScreenChange(DesktopScreen.Feed) },
+                                onNavigateToProfile = { pubKeyHex ->
+                                    onScreenChange(DesktopScreen.UserProfile(pubKeyHex))
+                                },
+                                onNavigateToThread = { noteId ->
+                                    onScreenChange(DesktopScreen.Thread(noteId))
+                                },
+                                onZapFeedback = onZapFeedback,
+                                onReply = onShowReplyDialog,
+                            )
+                        DesktopScreen.MarmotGroups -> DesktopMarmotGroupsScreen()
+                        DesktopScreen.Settings -> RelaySettingsScreen(relayManager, account, accountManager)
+                        DesktopScreen.BugReport -> DesktopBugReportScreen()
+                    }
+
+                    // FAB for compose (only on feed-like screens)
+                    if (!account.isReadOnly &&
+                        (currentScreen == DesktopScreen.Feed || currentScreen == DesktopScreen.Reads)
+                    ) {
+                        FloatingActionButton(
+                            onClick = onShowComposeDialog,
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(16.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.Black,
+                            shape = CircleShape,
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "New Post")
+                        }
+                    }
                 }
+            }
+
+            VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+            // ---- Right column: status/icons header + panels (weight ~0.26) ----
+            Column(
+                modifier = Modifier.weight(0.26f).fillMaxHeight(),
+            ) {
+                // Right header: Connected status + action icons + avatar
+                AtnaRightHeader(
+                    connectedRelayCount = connectedRelays.size,
+                    account = account,
+                    onScreenChange = onScreenChange,
+                )
+
+                // Right sidebar panels
+                AtnaRightSidebar()
             }
         }
 
@@ -655,6 +751,425 @@ fun MainContent(
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Center column: Search Bar header
+// ---------------------------------------------------------------------------
+
+@Composable
+fun AtnaSearchBar(onScreenChange: (DesktopScreen) -> Unit) {
+    var searchText by remember { mutableStateOf("") }
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = searchText,
+            onValueChange = { searchText = it },
+            modifier =
+                Modifier.weight(1f).height(40.dp).onKeyEvent { keyEvent ->
+                    if (keyEvent.key == Key.Enter && keyEvent.type == androidx.compose.ui.input.key.KeyEventType.KeyUp) {
+                        onScreenChange(DesktopScreen.Search)
+                        true
+                    } else {
+                        false
+                    }
+                },
+            placeholder = {
+                Text(
+                    "Search",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            trailingIcon = {
+                Icon(
+                    Icons.Default.CameraAlt,
+                    contentDescription = "Camera",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(20.dp),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                ),
+            textStyle =
+                MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Right column: header with status + icons + avatar
+// ---------------------------------------------------------------------------
+
+@Composable
+fun AtnaRightHeader(
+    connectedRelayCount: Int,
+    account: AccountState.LoggedIn,
+    onScreenChange: (DesktopScreen) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.End,
+    ) {
+        // Connected status indicator
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (connectedRelayCount > 0) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                        ),
+            )
+            Text(
+                if (connectedRelayCount > 0) "Connected" else "Connecting...",
+                style = MaterialTheme.typography.bodySmall,
+                color =
+                    if (connectedRelayCount > 0) {
+                        Color(0xFF4CAF50)
+                    } else {
+                        Color(0xFFFF5722)
+                    },
+            )
+        }
+
+        Spacer(Modifier.width(16.dp))
+
+        // Action icons
+        IconButton(
+            onClick = { onScreenChange(DesktopScreen.Messages) },
+            modifier = Modifier.size(36.dp),
+        ) {
+            Icon(
+                Icons.Default.Email,
+                contentDescription = "Messages",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+
+        IconButton(
+            onClick = { onScreenChange(DesktopScreen.Notifications) },
+            modifier = Modifier.size(36.dp),
+        ) {
+            Icon(
+                Icons.Default.Notifications,
+                contentDescription = "Notifications",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+
+        IconButton(
+            onClick = { onScreenChange(DesktopScreen.Settings) },
+            modifier = Modifier.size(36.dp),
+        ) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // User avatar
+        Box(
+            modifier =
+                Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                    .clickable { onScreenChange(DesktopScreen.MyProfile) },
+            contentAlignment = Alignment.Center,
+        ) {
+            com.vitorpamplona.amethyst.commons.ui.components.UserAvatar(
+                userHex = account.pubKeyHex,
+                pictureUrl = null,
+                size = 32.dp,
+                contentDescription = "Profile",
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Left Sidebar
+// ---------------------------------------------------------------------------
+
+/**
+ * Data class representing a sidebar navigation item.
+ */
+private data class SidebarNavItem(
+    val label: String,
+    val icon: ImageVector,
+    val screen: DesktopScreen,
+    val showBadge: Boolean = false,
+)
+
+@Composable
+fun AtnaLeftSidebar(
+    currentScreen: DesktopScreen,
+    onScreenChange: (DesktopScreen) -> Unit,
+) {
+    val navItems =
+        listOf(
+            SidebarNavItem("Home", Icons.Default.Home, DesktopScreen.Feed),
+            SidebarNavItem("Messages", Icons.Default.Email, DesktopScreen.Messages),
+            SidebarNavItem("Groups", Icons.Default.Lock, DesktopScreen.MarmotGroups),
+            SidebarNavItem("Reads", Icons.AutoMirrored.Filled.Article, DesktopScreen.Reads),
+            SidebarNavItem("Notifications", Icons.Default.Notifications, DesktopScreen.Notifications),
+            SidebarNavItem("Settings", Icons.Default.Settings, DesktopScreen.Settings),
+        )
+
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(top = 12.dp, bottom = 16.dp),
+    ) {
+        // ATNA Logo + branding (separated from nav)
+        Row(
+            modifier =
+                Modifier
+                    .height(44.dp)
+                    .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Image(
+                painter = painterResource("icon.png"),
+                contentDescription = "ATNA Logo",
+                modifier =
+                    Modifier
+                        .size(32.dp)
+                        .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+            Text(
+                "ATNA",
+                style =
+                    MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                    ),
+                color = Color.White,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+
+        // Navigation items
+        navItems.forEach { item ->
+            val isSelected = currentScreen == item.screen
+
+            SidebarNavItemRow(
+                label = item.label,
+                icon = item.icon,
+                isSelected = isSelected,
+                showBadge = item.showBadge,
+                onClick = { onScreenChange(item.screen) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SidebarNavItemRow(
+    label: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    showBadge: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val backgroundColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        } else {
+            Color.Transparent
+        }
+    val contentColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(backgroundColor)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = contentColor,
+            modifier = Modifier.size(22.dp),
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = label,
+                style =
+                    MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    ),
+                color = contentColor,
+            )
+
+            if (showBadge) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50)),
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Right Sidebar
+// ---------------------------------------------------------------------------
+
+@Composable
+fun AtnaRightSidebar() {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        // What to Follow panel
+        RightSidebarPanel(title = "What to Follow") {
+            Text(
+                "Coming soon",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
+        }
+
+        // What's Happening panel
+        RightSidebarPanel(title = "What's Happening") {
+            Text(
+                "Coming soon",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
+        }
+
+        // Likes Feed panel
+        RightSidebarPanel(
+            title = "Likes Feed",
+            trailing = {
+                var enabled by remember { mutableStateOf(false) }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { enabled = it },
+                    colors =
+                        SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        ),
+                    modifier = Modifier.height(20.dp),
+                )
+            },
+        ) {
+            Text(
+                "Coming soon",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RightSidebarPanel(
+    title: String,
+    trailing: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                style =
+                    MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                    ),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            trailing?.invoke()
+        }
+
+        content()
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
         )
     }
 }

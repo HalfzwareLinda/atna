@@ -97,6 +97,9 @@ fun ThreadScreen(
 ) {
     val connectedRelays by relayManager.connectedRelays.collectAsState()
     val relayStatuses by relayManager.relayStatuses.collectAsState()
+
+    @Suppress("UNUSED_VARIABLE")
+    val metadataVersion by localCache.metadataVersion.collectAsState()
     val scope = rememberCoroutineScope()
 
     // State for the root note

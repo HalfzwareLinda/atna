@@ -33,8 +33,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,8 +55,10 @@ import com.vitorpamplona.amethyst.commons.state.EventCollectionState
 import com.vitorpamplona.amethyst.commons.ui.components.EmptyState
 import com.vitorpamplona.amethyst.commons.ui.components.LoadingState
 import com.vitorpamplona.amethyst.commons.ui.feed.FeedHeader
+import com.vitorpamplona.amethyst.commons.util.toShortDisplay
 import com.vitorpamplona.amethyst.commons.util.toTimeAgo
 import com.vitorpamplona.amethyst.desktop.account.AccountState
+import com.vitorpamplona.amethyst.desktop.cache.DesktopLocalCache
 import com.vitorpamplona.amethyst.desktop.network.DesktopRelayConnectionManager
 import com.vitorpamplona.amethyst.desktop.subscriptions.DesktopRelaySubscriptionsCoordinator
 import com.vitorpamplona.amethyst.desktop.subscriptions.createNotificationsSubscription
@@ -109,11 +110,15 @@ sealed class NotificationItem(
 @Composable
 fun NotificationsScreen(
     relayManager: DesktopRelayConnectionManager,
+    localCache: DesktopLocalCache,
     account: AccountState.LoggedIn,
     subscriptionsCoordinator: DesktopRelaySubscriptionsCoordinator? = null,
 ) {
     val connectedRelays by relayManager.connectedRelays.collectAsState()
     val relayStatuses by relayManager.relayStatuses.collectAsState()
+
+    @Suppress("UNUSED_VARIABLE")
+    val metadataVersion by localCache.metadataVersion.collectAsState()
     val scope = rememberCoroutineScope()
     val notificationState =
         remember {
@@ -219,7 +224,7 @@ fun NotificationsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(notifications, key = { it.event.id }) { notification ->
-                    NotificationCard(notification)
+                    NotificationCard(notification, localCache)
                 }
             }
         }
@@ -227,7 +232,10 @@ fun NotificationsScreen(
 }
 
 @Composable
-fun NotificationCard(notification: NotificationItem) {
+fun NotificationCard(
+    notification: NotificationItem,
+    localCache: DesktopLocalCache,
+) {
     val (icon, label, color) =
         when (notification) {
             is NotificationItem.Mention -> Triple(Icons.Default.Favorite, "mentioned you", MaterialTheme.colorScheme.primary)
@@ -246,65 +254,66 @@ fun NotificationCard(notification: NotificationItem) {
         }
 
     val authorDisplay =
-        try {
-            notification.event.pubKey
-                .hexToByteArrayOrNull()
-                ?.toNpub()
-                ?.take(20) ?: notification.event.pubKey.take(20)
-        } catch (e: Exception) {
-            notification.event.pubKey.take(20)
-        }
+        localCache
+            .getUserIfExists(notification.event.pubKey)
+            ?.toBestDisplayName()
+            ?: try {
+                notification.event.pubKey
+                    .hexToByteArrayOrNull()
+                    ?.toNpub()
+                    ?.toShortDisplay(5) ?: notification.event.pubKey.take(16)
+            } catch (e: Exception) {
+                notification.event.pubKey.take(16)
+            }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Header: icon + label + author + time
+        // Header: icon + label + author + time
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        icon,
-                        contentDescription = label,
-                        tint = color,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "$authorDisplay $label",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
+                Icon(
+                    icon,
+                    contentDescription = label,
+                    tint = color,
+                    modifier = Modifier.size(16.dp),
+                )
                 Text(
-                    text = notification.timestamp.toTimeAgo(withDot = false),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    text = "$authorDisplay $label",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
-            // Content (for text-based notifications)
-            if (notification is NotificationItem.Mention ||
-                notification is NotificationItem.Reply
-            ) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = notification.event.content.take(200),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
-                )
-            }
+            Text(
+                text = notification.timestamp.toTimeAgo(withDot = false),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
         }
+
+        // Content (for text-based notifications)
+        if (notification is NotificationItem.Mention ||
+            notification is NotificationItem.Reply
+        ) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = notification.event.content.take(200),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 3,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
     }
 }

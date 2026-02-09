@@ -38,6 +38,8 @@ class MarmotEventRouter(
     private val scope: CoroutineScope,
     private val ourPubkey: String = "",
 ) {
+    val isInitialized: Boolean get() = manager.isInitialized
+
     private val _groups = MutableStateFlow<List<MarmotGroup>>(emptyList())
     val groups: StateFlow<List<MarmotGroup>> = _groups.asStateFlow()
 

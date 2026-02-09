@@ -211,6 +211,26 @@ class FeedMetadataCoordinator(
     }
 
     /**
+     * Load trust provider list for a user (kind 10040).
+     * Fetches the user's NIP-85 trusted service providers from index relays.
+     */
+    fun loadTrustProviderList(pubkey: HexKey) {
+        if (pubkey in queuedPubkeys) return
+
+        val filter =
+            Filter(
+                kinds = listOf(10040),
+                authors = listOf(pubkey),
+                limit = 1,
+            )
+        priorityQueue.enqueue(
+            SubscriptionPriority.METADATA,
+            filter,
+            tag = "trust-provider-$pubkey",
+        )
+    }
+
+    /**
      * Clear queued items. Call when switching feeds.
      */
     fun clear() {

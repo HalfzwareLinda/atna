@@ -25,9 +25,12 @@ import com.vitorpamplona.amethyst.commons.relayClient.assemblers.FeedMetadataCoo
 import com.vitorpamplona.amethyst.commons.relayClient.preload.MetadataPreloader
 import com.vitorpamplona.amethyst.commons.relayClient.preload.MetadataRateLimiter
 import com.vitorpamplona.amethyst.desktop.cache.DesktopLocalCache
+import com.vitorpamplona.quartz.experimental.relationshipStatus.ContactCardEvent
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent
 import com.vitorpamplona.quartz.nip01Core.relay.client.INostrClient
+import com.vitorpamplona.quartz.nip01Core.relay.client.single.newSubId
+import com.vitorpamplona.quartz.nip01Core.relay.filters.Filter
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl
 import kotlinx.coroutines.CoroutineScope
 
@@ -128,6 +131,43 @@ class DesktopRelaySubscriptionsCoordinator(
      */
     fun loadReactionsForNotes(noteIds: List<HexKey>) {
         feedMetadata.loadReactionsForNotes(noteIds)
+    }
+
+    /**
+     * Load trust provider list for a user (kind 10040).
+     * Fetches via index relays through FeedMetadataCoordinator.
+     */
+    fun loadTrustProviderList(pubkey: HexKey) {
+        feedMetadata.loadTrustProviderList(pubkey)
+    }
+
+    /**
+     * Load contact cards (kind 30382) from a trust provider's relay.
+     * Subscribes directly to the provider's relay with "d" tag targeting
+     * the requested pubkeys, mirroring Android's UserCardsSubAssembler pattern.
+     *
+     * @param targetPubkeys Pubkeys of users to get trust cards for
+     * @param providerRelay The trust provider's relay URL (e.g. wss://nip85.brainstorm.world)
+     * @param providerPubkey The trust provider's pubkey
+     */
+    fun loadContactCardsFromProvider(
+        targetPubkeys: List<HexKey>,
+        providerRelay: NormalizedRelayUrl,
+        providerPubkey: HexKey,
+    ) {
+        if (targetPubkeys.isEmpty()) return
+
+        val filter =
+            Filter(
+                kinds = listOf(ContactCardEvent.KIND),
+                authors = listOf(providerPubkey),
+                tags = mapOf("d" to targetPubkeys.sorted()),
+            )
+
+        client.openReqSubscription(
+            subId = newSubId(),
+            filters = mapOf(providerRelay to listOf(filter)),
+        )
     }
 
     /**

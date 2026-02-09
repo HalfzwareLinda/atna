@@ -22,6 +22,7 @@ package com.vitorpamplona.amethyst.desktop.ui
 
 import com.vitorpamplona.amethyst.commons.model.User
 import com.vitorpamplona.amethyst.commons.model.cache.ICacheProvider
+import com.vitorpamplona.amethyst.commons.util.toShortDisplay
 import com.vitorpamplona.amethyst.desktop.ui.note.NoteDisplayData
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip01Core.core.hexToByteArrayOrNull
@@ -29,21 +30,24 @@ import com.vitorpamplona.quartz.nip19Bech32.toNpub
 
 /**
  * Extension to convert Event to NoteDisplayData for the shared NoteCard.
+ * Resolves profile display names from cached metadata when available.
  */
 fun Event.toNoteDisplayData(cache: ICacheProvider? = null): NoteDisplayData {
-    val npub =
-        try {
-            pubKey.hexToByteArrayOrNull()?.toNpub() ?: pubKey.take(16) + "..."
-        } catch (e: Exception) {
-            pubKey.take(16) + "..."
+    val user = (cache?.getUserIfExists(pubKey) as? User)
+    val displayName =
+        user?.toBestDisplayName() ?: run {
+            try {
+                pubKey.hexToByteArrayOrNull()?.toNpub()?.toShortDisplay(5) ?: pubKey.take(16) + "..."
+            } catch (e: Exception) {
+                pubKey.take(16) + "..."
+            }
         }
-
-    val pictureUrl = (cache?.getUserIfExists(pubKey) as? User)?.profilePicture()
+    val pictureUrl = user?.profilePicture()
 
     return NoteDisplayData(
         id = id,
         pubKeyHex = pubKey,
-        pubKeyDisplay = npub,
+        pubKeyDisplay = displayName,
         profilePictureUrl = pictureUrl,
         content = content,
         createdAt = createdAt,

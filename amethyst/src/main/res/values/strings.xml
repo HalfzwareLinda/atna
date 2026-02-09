@@ -1491,6 +1491,20 @@
     <string name="marmot_groups">Encrypted Groups</string>
     <string name="marmot_no_groups">No encrypted groups yet</string>
     <string name="marmot_coming_soon">Marmot encrypted group DMs coming soon</string>
+    <string name="marmot_conversation">Group Chat</string>
+    <string name="marmot_type_message">Type a message…</string>
+    <string name="marmot_send">Send</string>
+    <string name="marmot_accept">Accept</string>
+    <string name="marmot_decline">Decline</string>
+    <string name="marmot_pending_invites">Pending Invites</string>
+    <string name="marmot_your_groups">Your Groups</string>
+    <string name="marmot_powered_by">Powered by Marmot</string>
+    <string name="marmot_no_messages">No messages yet</string>
+    <string name="marmot_invite_from">Invitation from %1$s</string>
+    <string name="marmot_members_count">%1$d members</string>
+    <string name="marmot_accepting">Accepting…</string>
+    <string name="marmot_declining">Declining…</string>
+    <string name="marmot_create_group">New Group</string>
 
     <!-- ATNA: Storage Backend -->
     <string name="storage_backend">Storage Backend</string>

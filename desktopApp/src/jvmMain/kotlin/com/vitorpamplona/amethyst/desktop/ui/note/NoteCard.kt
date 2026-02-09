@@ -29,8 +29,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -74,76 +72,66 @@ fun NoteCard(
     val richTextParser = remember { RichTextParser() }
     val urls = remember(note.content) { richTextParser.parseValidUrls(note.content) }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-        onClick = onClick ?: {},
+    Column(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .let { mod ->
+                    if (onClick != null) mod.clickable(onClick = onClick) else mod
+                }.padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Author with avatar
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                modifier =
+                    if (onAuthorClick != null) {
+                        Modifier.clickable { onAuthorClick(note.pubKeyHex) }
+                    } else {
+                        Modifier
+                    },
             ) {
-                // Author with avatar
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier =
-                        if (onAuthorClick != null) {
-                            Modifier.clickable { onAuthorClick(note.pubKeyHex) }
-                        } else {
-                            Modifier
-                        },
-                ) {
-                    UserAvatar(
-                        userHex = note.pubKeyHex,
-                        pictureUrl = note.profilePictureUrl,
-                        size = 32.dp,
-                        contentDescription = "Profile picture of ${note.pubKeyDisplay}",
-                    )
+                UserAvatar(
+                    userHex = note.pubKeyHex,
+                    pictureUrl = note.profilePictureUrl,
+                    size = 32.dp,
+                    contentDescription = "Profile picture of ${note.pubKeyDisplay}",
+                )
 
-                    Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(8.dp))
 
-                    Text(
-                        text = note.pubKeyDisplay.take(20) + if (note.pubKeyDisplay.length > 20) "..." else "",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                    )
-                }
-
-                // Timestamp
                 Text(
-                    text = note.createdAt.toTimeAgo(withDot = false),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = note.pubKeyDisplay,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            RichTextContent(
-                content = note.content,
-                urls = urls,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-
-            Spacer(Modifier.height(4.dp))
-
-            // Event ID (truncated)
+            // Timestamp
             Text(
-                text = "ID: ${note.id.take(12)}...",
+                text = note.createdAt.toTimeAgo(withDot = false),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        RichTextContent(
+            content = note.content,
+            urls = urls,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
     }
 }
 

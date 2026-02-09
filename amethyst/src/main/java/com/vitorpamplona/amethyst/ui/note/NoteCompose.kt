@@ -50,9 +50,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.commons.compose.produceCachedStateAsync
+import com.vitorpamplona.amethyst.commons.model.nip05DnsIdentifiers.Nip05State
 import com.vitorpamplona.amethyst.commons.model.nip28PublicChats.PublicChatChannel
 import com.vitorpamplona.amethyst.model.AddressableNote
 import com.vitorpamplona.amethyst.model.Note
@@ -1154,6 +1157,29 @@ fun DisplayDraftChat() {
 }
 
 @Composable
+fun InlineNip05Display(
+    baseNote: Note,
+    accountViewModel: AccountViewModel,
+) {
+    WatchAuthor(baseNote, accountViewModel) { user ->
+        val nip05State by user.nip05State().flow.collectAsStateWithLifecycle()
+        if (nip05State is Nip05State.Exists) {
+            val nip05 = (nip05State as Nip05State.Exists).nip05
+            val displayText =
+                remember(nip05) {
+                    if (nip05.name != "_") " @${nip05.name}@${nip05.domain}" else " @${nip05.domain}"
+                }
+            Text(
+                text = displayText,
+                color = MaterialTheme.colorScheme.placeholderText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 fun FirstUserInfoRow(
     baseNote: Note,
     showAuthorPicture: Boolean,
@@ -1170,10 +1196,13 @@ fun FirstUserInfoRow(
         if (showAuthorPicture) {
             NoteAuthorPicture(baseNote, Size25dp, accountViewModel = accountViewModel, nav = nav)
             Spacer(HalfPadding)
-            NoteUsernameDisplay(baseNote, Modifier.weight(1f), textColor = textColor, accountViewModel = accountViewModel)
-        } else {
-            NoteUsernameDisplay(baseNote, Modifier.weight(1f), textColor = textColor, accountViewModel = accountViewModel)
         }
+
+        NoteUsernameDisplay(baseNote, Modifier, textColor = textColor, accountViewModel = accountViewModel)
+
+        InlineNip05Display(baseNote, accountViewModel)
+
+        Spacer(Modifier.weight(1f))
 
         if (isDraft) {
             ObserveDraftEvent(baseNote, accountViewModel) { draftNote ->

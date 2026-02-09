@@ -35,11 +35,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -156,6 +154,9 @@ fun FeedScreen(
 ) {
     val connectedRelays by relayManager.connectedRelays.collectAsState()
     val relayStatuses by relayManager.relayStatuses.collectAsState()
+
+    @Suppress("UNUSED_VARIABLE")
+    val metadataVersion by localCache.metadataVersion.collectAsState()
     val scope = rememberCoroutineScope()
     val eventState =
         remember {
@@ -515,32 +516,13 @@ fun FeedScreen(
                     }
                 }
 
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (feedMode == FeedMode.FOLLOWING) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        "${connectedRelays.size} relays connected",
+                        "${followedUsers.size} followed",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (feedMode == FeedMode.FOLLOWING) {
-                        Text(
-                            " • ${followedUsers.size} followed",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { relayManager.connect() },
-                        modifier = Modifier.size(24.dp),
-                    ) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
                 }
             }
 

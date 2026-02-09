@@ -299,18 +299,64 @@ class AppModules(
             val dbPath = appContext.filesDir.absolutePath + "/nostrdb"
             eventPersistenceService.start(dbPath)
 
-            // Load recent events from LMDB back into the in-memory cache
+            // Phased rehydration: load profiles first so names/pictures appear
+            // immediately, then contact lists, then recent notes and DMs.
             val oneDayAgo =
                 com.vitorpamplona.quartz.utils.TimeUtils
                     .now() - 86400
-            val recentEvents =
+
+            // Phase 1: Profiles (kind 0) — most important for display names
+            val profiles =
                 eventPersistenceService.loadEvents(
                     com.vitorpamplona.quartz.nip01Core.relay.filters
-                        .Filter(since = oneDayAgo, limit = 5000),
+                        .Filter(kinds = listOf(0), limit = 10000),
                 )
-            recentEvents.sortedBy { it.createdAt }.forEach { event ->
+            profiles.sortedBy { it.createdAt }.forEach { event ->
                 cache.justConsume(event, null, false)
             }
+
+            // Phase 2: Contact lists (kind 3)
+            val contacts =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(3), limit = 5000),
+                )
+            contacts.sortedBy { it.createdAt }.forEach { event ->
+                cache.justConsume(event, null, false)
+            }
+
+            // Phase 3: Recent notes (kind 1)
+            val notes =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(1), since = oneDayAgo, limit = 3000),
+                )
+            notes.sortedBy { it.createdAt }.forEach { event ->
+                cache.justConsume(event, null, false)
+            }
+
+            // Phase 4: Recent DMs and gift wraps
+            val dms =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(4, 14, 1059), since = oneDayAgo, limit = 1000),
+                )
+            dms.sortedBy { it.createdAt }.forEach { event ->
+                cache.justConsume(event, null, false)
+            }
+
+            // Phase 5: Trust provider lists (10040) and contact cards (30382)
+            val trustEvents =
+                eventPersistenceService.loadEvents(
+                    com.vitorpamplona.quartz.nip01Core.relay.filters
+                        .Filter(kinds = listOf(10040, 30382), limit = 5000),
+                )
+            trustEvents.sortedBy { it.createdAt }.forEach { event ->
+                cache.justConsume(event, null, false)
+            }
+
+            // Prune old events to keep DB size reasonable
+            eventPersistenceService.prune()
         }
 
         // Initialize Marmot encrypted group DMs

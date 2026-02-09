@@ -41,8 +41,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tag
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -378,7 +376,7 @@ private fun SearchResultCard(
     onNavigateToThread: (String) -> Unit,
     onNavigateToHashtag: (String) -> Unit,
 ) {
-    Card(
+    Column(
         modifier =
             Modifier
                 .fillMaxWidth()
@@ -393,13 +391,9 @@ private fun SearchResultCard(
                         is SearchResult.HashtagResult -> onNavigateToHashtag(result.hashtag)
                     }
                 },
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -449,5 +443,7 @@ private fun SearchResultCard(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
     }
 }

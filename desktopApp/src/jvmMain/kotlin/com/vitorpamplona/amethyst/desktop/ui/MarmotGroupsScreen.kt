@@ -21,6 +21,7 @@
 package com.vitorpamplona.amethyst.desktop.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,43 +35,74 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun DesktopMarmotGroupsScreen() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Lock,
-            contentDescription = "Encrypted Groups",
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Background branding watermark
+        Column(
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .alpha(0.04f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                modifier = Modifier.size(160.dp),
+            )
+            Text(
+                text = "Marmot",
+                style = MaterialTheme.typography.displayMedium,
+            )
+        }
 
-        Spacer(Modifier.height(16.dp))
+        // Foreground content
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "Encrypted Groups",
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-        Text(
-            text = "Encrypted Groups",
-            style = MaterialTheme.typography.headlineMedium,
-        )
+            Spacer(Modifier.height(16.dp))
 
-        Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Encrypted Groups",
+                style = MaterialTheme.typography.headlineMedium,
+            )
 
-        Text(
-            text = "Marmot end-to-end encrypted group messaging",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            Spacer(Modifier.height(8.dp))
 
-        Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Marmot end-to-end encrypted group messaging",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-        Text(
-            text = "Available on Android — desktop native library support coming soon",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            Spacer(Modifier.height(4.dp))
+
+            Text(
+                text = "Available on Android \u2014 desktop native library support coming soon",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = "Powered by Marmot",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            )
+        }
     }
 }

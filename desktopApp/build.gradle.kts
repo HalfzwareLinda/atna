@@ -45,6 +45,10 @@ dependencies {
     // Networking
     implementation(libs.okhttp)
 
+    // Image caching (Coil 3 - disk + memory cache for profile pictures)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.okhttp)
+
     // JSON
     implementation(libs.jackson.module.kotlin)
 

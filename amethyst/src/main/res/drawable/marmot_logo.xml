@@ -1,0 +1,70 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+  <!-- Marmot body silhouette (rounded sitting marmot shape) -->
+  <path
+      android:pathData="M256,48 C200,48 160,80 144,120 C128,160 120,200 128,240 C132,264 140,284 156,300 C148,320 144,344 148,368 C152,400 168,424 192,440 C208,452 228,460 256,464 C284,460 304,452 320,440 C344,424 360,400 364,368 C368,344 364,320 356,300 C372,284 380,264 384,240 C392,200 384,160 368,120 C352,80 312,48 256,48Z">
+    <aapt:attr name="android:fillColor">
+      <gradient
+          android:startX="144"
+          android:startY="48"
+          android:endX="384"
+          android:endY="464"
+          android:type="linear">
+        <item android:offset="0" android:color="#FF8D6E63"/>
+        <item android:offset="1" android:color="#FF5D4037"/>
+      </gradient>
+    </aapt:attr>
+  </path>
+
+  <!-- Marmot belly/chest lighter patch -->
+  <path
+      android:pathData="M256,180 C232,180 216,200 212,228 C208,256 216,288 232,308 C240,320 248,324 256,324 C264,324 272,320 280,308 C296,288 304,256 300,228 C296,200 280,180 256,180Z"
+      android:fillColor="#FFBCAAA4"/>
+
+  <!-- Left ear -->
+  <path
+      android:pathData="M192,80 C180,56 168,48 160,52 C152,56 152,72 160,96 C168,108 180,112 192,104Z"
+      android:fillColor="#FF8D6E63"/>
+
+  <!-- Right ear -->
+  <path
+      android:pathData="M320,80 C332,56 344,48 352,52 C360,56 360,72 352,96 C344,108 332,112 320,104Z"
+      android:fillColor="#FF8D6E63"/>
+
+  <!-- Left eye -->
+  <path
+      android:pathData="M224,152 a12,14 0 1,0 24,0 a12,14 0 1,0 -24,0"
+      android:fillColor="#FF3E2723"/>
+
+  <!-- Right eye -->
+  <path
+      android:pathData="M264,152 a12,14 0 1,0 24,0 a12,14 0 1,0 -24,0"
+      android:fillColor="#FF3E2723"/>
+
+  <!-- Nose -->
+  <path
+      android:pathData="M248,176 C248,172 252,168 256,168 C260,168 264,172 264,176 C264,180 260,184 256,184 C252,184 248,180 248,176Z"
+      android:fillColor="#FF3E2723"/>
+
+  <!-- Shield/lock overlay on belly (encryption symbol) -->
+  <path
+      android:pathData="M256,232 C240,232 228,240 228,252 L228,260 C220,260 216,264 216,272 L216,304 C216,312 220,316 228,316 L284,316 C292,316 296,312 296,304 L296,272 C296,264 292,260 284,260 L284,252 C284,240 272,232 256,232Z M268,252 L268,260 L244,260 L244,252 C244,244 248,240 256,240 C264,240 268,244 268,252Z">
+    <aapt:attr name="android:fillColor">
+      <gradient
+          android:startX="216"
+          android:startY="232"
+          android:endX="296"
+          android:endY="316"
+          android:type="linear">
+        <item android:offset="0" android:color="#FF00E5CC"/>
+        <item android:offset="1" android:color="#FF00695C"/>
+      </gradient>
+    </aapt:attr>
+  </path>
+
+</vector>

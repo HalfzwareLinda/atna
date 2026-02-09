@@ -38,7 +38,10 @@ import com.vitorpamplona.quartz.nip47WalletConnect.LnZapPaymentResponseEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
@@ -55,6 +58,9 @@ class DesktopLocalCache : ICacheProvider {
     private val deletedEvents = ConcurrentHashMap.newKeySet<HexKey>()
 
     private val eventStream = DesktopCacheEventStream()
+
+    private val _metadataVersion = MutableStateFlow(0)
+    val metadataVersion: StateFlow<Int> = _metadataVersion.asStateFlow()
 
     val paymentTracker = NwcPaymentTracker()
 
@@ -111,6 +117,7 @@ class DesktopLocalCache : ICacheProvider {
             val newUserMetadata = event.contactMetaData()
             if (newUserMetadata != null) {
                 user.updateUserInfo(newUserMetadata, event)
+                _metadataVersion.value++
             }
         }
     }

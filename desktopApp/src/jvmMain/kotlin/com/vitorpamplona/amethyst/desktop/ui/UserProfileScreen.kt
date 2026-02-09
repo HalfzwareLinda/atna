@@ -40,8 +40,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -380,118 +379,113 @@ fun UserProfileScreen(
         if (connectedRelays.isEmpty()) {
             LoadingState("Connecting to relays...")
         } else {
-            // Profile card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        // Profile picture with robohash fallback
-                        UserAvatar(
-                            userHex = pubKeyHex,
-                            pictureUrl = picture,
-                            size = 56.dp,
-                            contentDescription = "Profile picture",
-                        )
+            // Profile section
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    // Profile picture with robohash fallback
+                    UserAvatar(
+                        userHex = pubKeyHex,
+                        pictureUrl = picture,
+                        size = 56.dp,
+                        contentDescription = "Profile picture",
+                    )
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                displayName ?: (pubKeyHex.hexToByteArrayOrNull()?.toNpub()?.take(20) ?: pubKeyHex.take(20)),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            val npub = pubKeyHex.hexToByteArrayOrNull()?.toNpub()
-                            var copied by remember { mutableStateOf(false) }
-
-                            // Reset copied state after delay
-                            LaunchedEffect(copied) {
-                                if (copied) {
-                                    delay(2000)
-                                    copied = false
-                                }
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Text(
-                                    (npub?.take(32) ?: pubKeyHex.take(32)) + "...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                if (npub != null) {
-                                    IconButton(
-                                        onClick = {
-                                            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-                                            clipboard.setContents(StringSelection(npub), null)
-                                            copied = true
-                                        },
-                                        modifier = Modifier.size(20.dp),
-                                    ) {
-                                        Icon(
-                                            if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                                            contentDescription = if (copied) "Copied" else "Copy npub",
-                                            modifier = Modifier.size(14.dp),
-                                            tint =
-                                                if (copied) {
-                                                    MaterialTheme.colorScheme.primary
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (about != null) {
-                        Spacer(Modifier.height(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            about!!,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            displayName ?: (pubKeyHex.hexToByteArrayOrNull()?.toNpub()?.take(20) ?: pubKeyHex.take(20)),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
                         )
-                    }
+                        Spacer(Modifier.height(4.dp))
+                        val npub = pubKeyHex.hexToByteArrayOrNull()?.toNpub()
+                        var copied by remember { mutableStateOf(false) }
 
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Column {
-                            Text(
-                                "$followersCount",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                "Followers",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        // Reset copied state after delay
+                        LaunchedEffect(copied) {
+                            if (copied) {
+                                delay(2000)
+                                copied = false
+                            }
                         }
-                        Column {
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
                             Text(
-                                "$followingCount",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                "Following",
+                                (npub?.take(32) ?: pubKeyHex.take(32)) + "...",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (npub != null) {
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                                        clipboard.setContents(StringSelection(npub), null)
+                                        copied = true
+                                    },
+                                    modifier = Modifier.size(20.dp),
+                                ) {
+                                    Icon(
+                                        if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                        contentDescription = if (copied) "Copied" else "Copy npub",
+                                        modifier = Modifier.size(14.dp),
+                                        tint =
+                                            if (copied) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+
+                if (about != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        about!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column {
+                        Text(
+                            "$followersCount",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "Followers",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Column {
+                        Text(
+                            "$followingCount",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "Following",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             }
 
             Spacer(Modifier.height(16.dp))

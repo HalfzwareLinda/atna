@@ -146,4 +146,80 @@ class EventPersistenceServiceTest {
             java.io.File(dbPath).deleteRecursively()
         }
     }
+
+    private fun makeEvent(kind: Int) =
+        com.vitorpamplona.quartz.nip01Core.core.Event(
+            id = "a".repeat(64),
+            pubKey = "b".repeat(64),
+            createdAt = 1700000000L,
+            kind = kind,
+            tags = emptyArray(),
+            content = "",
+            sig = "c".repeat(64),
+        )
+
+    @Test
+    fun testPersistEventAcceptsNip85Kinds() {
+        val dbPath = System.getProperty("java.io.tmpdir") + "/atna-test-nip85-" + System.currentTimeMillis()
+        val service = EventPersistenceService(createScope())
+        try {
+            service.start(dbPath)
+            // Trust provider list (10040) and contact card (30382) should be
+            // accepted by the kind filter (not silently dropped).
+            listOf(10040, 30382).forEach { kind ->
+                service.persistEvent(makeEvent(kind))
+            }
+        } finally {
+            service.stop()
+            java.io.File(dbPath).deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testPersistEventAcceptsReactionsAndZaps() {
+        val dbPath = System.getProperty("java.io.tmpdir") + "/atna-test-rz-" + System.currentTimeMillis()
+        val service = EventPersistenceService(createScope())
+        try {
+            service.start(dbPath)
+            // Reactions (7), generic reposts (16), zap requests (9734),
+            // zap receipts (9735) should all be accepted.
+            listOf(7, 16, 9734, 9735).forEach { kind ->
+                service.persistEvent(makeEvent(kind))
+            }
+        } finally {
+            service.stop()
+            java.io.File(dbPath).deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testPersistEventAcceptsUserLists() {
+        val dbPath = System.getProperty("java.io.tmpdir") + "/atna-test-lists-" + System.currentTimeMillis()
+        val service = EventPersistenceService(createScope())
+        try {
+            service.start(dbPath)
+            // Mute (10000), chat relay (10050), people (30000), bookmarks (30001),
+            // relay sets (30002), labeled bookmarks (30003), pins (33888).
+            listOf(10000, 10050, 30000, 30001, 30002, 30003, 33888).forEach { kind ->
+                service.persistEvent(makeEvent(kind))
+            }
+        } finally {
+            service.stop()
+            java.io.File(dbPath).deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testEphemeralEventsAreStillDropped() {
+        val dbPath = System.getProperty("java.io.tmpdir") + "/atna-test-ephem-" + System.currentTimeMillis()
+        val service = EventPersistenceService(createScope())
+        try {
+            service.start(dbPath)
+            // Ephemeral events (20000-29999) should always be dropped
+            service.persistEvent(makeEvent(22242))
+        } finally {
+            service.stop()
+            java.io.File(dbPath).deleteRecursively()
+        }
+    }
 }
