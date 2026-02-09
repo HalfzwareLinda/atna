@@ -31,6 +31,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
         }
 
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+
         // mdk-kotlin dependencies will be added when MDK integration is implemented.
         // For now, the MdkMarmotManager stubs don't call MDK, so no dependency needed.
         // When ready, add per-platform:

@@ -35,6 +35,12 @@ kotlin {
             }
         }
 
+        commonTest {
+            dependencies {
+                implementation(libs.kotlin.test)
+            }
+        }
+
         // Must be defined before androidMain and jvmMain
         val jvmAndroid = create("jvmAndroid") {
             dependsOn(commonMain.get())

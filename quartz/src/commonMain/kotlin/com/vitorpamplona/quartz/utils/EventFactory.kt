@@ -39,6 +39,10 @@ import com.vitorpamplona.quartz.experimental.publicMessages.PublicMessageEvent
 import com.vitorpamplona.quartz.experimental.relationshipStatus.ContactCardEvent
 import com.vitorpamplona.quartz.experimental.trustedAssertions.list.TrustProviderListEvent
 import com.vitorpamplona.quartz.experimental.zapPolls.PollNoteEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotGroupEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageRelayListEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotWelcomeEvent
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.crypto.EventHasher
@@ -261,6 +265,10 @@ class EventFactory {
                 LnZapPrivateEvent.KIND -> LnZapPrivateEvent(id, pubKey, createdAt, tags, content, sig)
                 LnZapRequestEvent.KIND -> LnZapRequestEvent(id, pubKey, createdAt, tags, content, sig)
                 LongTextNoteEvent.KIND -> LongTextNoteEvent(id, pubKey, createdAt, tags, content, sig)
+                MarmotKeyPackageEvent.KIND -> MarmotKeyPackageEvent(id, pubKey, createdAt, tags, content, sig)
+                MarmotWelcomeEvent.KIND -> MarmotWelcomeEvent(id, pubKey, createdAt, tags, content, sig)
+                MarmotGroupEvent.KIND -> MarmotGroupEvent(id, pubKey, createdAt, tags, content, sig)
+                MarmotKeyPackageRelayListEvent.KIND -> MarmotKeyPackageRelayListEvent(id, pubKey, createdAt, tags, content, sig)
                 MeetingRoomEvent.KIND -> MeetingRoomEvent(id, pubKey, createdAt, tags, content, sig)
                 MeetingRoomPresenceEvent.KIND -> MeetingRoomPresenceEvent(id, pubKey, createdAt, tags, content, sig)
                 MeetingSpaceEvent.KIND -> MeetingSpaceEvent(id, pubKey, createdAt, tags, content, sig)

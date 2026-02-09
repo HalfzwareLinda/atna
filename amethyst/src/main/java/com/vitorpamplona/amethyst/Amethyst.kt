@@ -21,6 +21,8 @@
 package com.vitorpamplona.amethyst
 
 import android.app.Application
+import android.os.Build
+import com.atna.bugreport.CrashHandler
 import com.vitorpamplona.amethyst.service.logging.Logging
 import com.vitorpamplona.quartz.utils.Log
 
@@ -32,12 +34,22 @@ class Amethyst : Application() {
     companion object {
         lateinit var instance: AppModules
             private set
+
+        const val CRASH_FILE = "crash_report.json"
     }
 
     override fun onCreate() {
         super.onCreate()
         Log.d("AmethystApp", "onCreate $this")
         instance = AppModules(this)
+
+        val crashFilePath = filesDir.resolve(CRASH_FILE).absolutePath
+        CrashHandler(
+            crashFilePath = crashFilePath,
+            appVersion = BuildConfig.VERSION_NAME,
+            platform = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            device = "${Build.MANUFACTURER} ${Build.MODEL}",
+        ).install()
 
         if (isDebug) {
             Logging.setup()

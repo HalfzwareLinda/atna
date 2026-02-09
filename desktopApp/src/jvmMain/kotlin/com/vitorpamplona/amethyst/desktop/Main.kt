@@ -79,6 +79,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.atna.bugreport.CrashHandler
 import com.vitorpamplona.amethyst.commons.ui.screens.MessagesPlaceholder
 import com.vitorpamplona.amethyst.desktop.account.AccountManager
 import com.vitorpamplona.amethyst.desktop.account.AccountState
@@ -137,7 +138,19 @@ sealed class DesktopScreen {
     object BugReport : DesktopScreen()
 }
 
-fun main() =
+fun main() {
+    val crashDir = System.getProperty("user.home") + "/.atna"
+    java.io.File(crashDir).mkdirs()
+    CrashHandler(
+        crashFilePath = "$crashDir/crash_report.json",
+        appVersion = "1.0.0-dev",
+        platform = "Linux ${System.getProperty("os.version")}",
+        device =
+            java.net.InetAddress
+                .getLocalHost()
+                .hostName,
+    ).install()
+
     application {
         val windowState =
             rememberWindowState(
@@ -239,6 +252,7 @@ fun main() =
             )
         }
     }
+}
 
 @Composable
 fun App(

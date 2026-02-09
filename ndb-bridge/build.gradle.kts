@@ -30,5 +30,9 @@ kotlin {
             implementation(project(":quartz"))
             implementation(libs.kotlinx.coroutines.core)
         }
+
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }
