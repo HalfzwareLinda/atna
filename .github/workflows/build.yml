@@ -1,4 +1,4 @@
-name: Test/Build Android
+name: Test/Build ATNA
 
 on:
   pull_request:
@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -37,47 +37,57 @@ jobs:
 
       - name: Android Test Report
         uses: asadmansr/android-test-report-action@v1.2.0
-        if: ${{ always() }} # IMPORTANT: run Android Test Report regardless
+        if: ${{ always() }}
 
-      - name: Build APK (gradle)
+      - name: Build Debug APK
         run: ./gradlew assembleDebug
 
       - name: Upload Play APK
         uses: actions/upload-artifact@v4
         with:
-          name: Play Debug APK
+          name: atna-play-debug-${{ github.sha }}
           path: amethyst/build/outputs/apk/play/debug/amethyst-play-universal-debug.apk
 
       - name: Upload FDroid APK
         uses: actions/upload-artifact@v4
         with:
-          name: FDroid Debug APK
+          name: atna-fdroid-debug-${{ github.sha }}
           path: amethyst/build/outputs/apk/fdroid/debug/amethyst-fdroid-universal-debug.apk
-
-      - name: Build APK (gradle)
-        run: ./gradlew assembleBenchmark
-
-      - name: Upload Play APK Benchmark
-        uses: actions/upload-artifact@v4
-        with:
-          name: Play Benchmark APK
-          path: amethyst/build/outputs/apk/play/benchmark/amethyst-play-universal-benchmark.apk
-
-      - name: Upload FDroid APK Benchmark
-        uses: actions/upload-artifact@v4
-        with:
-          name: FDroid Benchmark APK
-          path: amethyst/build/outputs/apk/fdroid/benchmark/amethyst-fdroid-universal-benchmark.apk
-
-      - name: Upload Compose Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: Compose Reports
-          path: amethyst/build/compose_compiler
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
+        if: ${{ always() }}
         with:
           name: Test Reports
           path: amethyst/build/reports
 
+  build-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+
+      - name: Cache gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-desktop-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-desktop-
+
+      - name: Build Desktop DEB
+        run: ./gradlew :desktopApp:packageDeb
+
+      - name: Upload DEB Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: atna-desktop-deb-${{ github.sha }}
+          path: desktopApp/build/compose/binaries/main/deb/*.deb

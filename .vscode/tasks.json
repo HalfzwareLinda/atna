@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Debug APK",
+      "type": "shell",
+      "command": "make build:apk",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run All Unit Tests",
+      "type": "shell",
+      "command": "make test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint (Spotless)",
+      "type": "shell",
+      "command": "make lint",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Desktop App",
+      "type": "shell",
+      "command": "make run:desktop",
+      "problemMatcher": []
+    },
+    {
+      "label": "Package Ubuntu DEB",
+      "type": "shell",
+      "command": "make build:deb",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Install APK on Device",
+      "type": "shell",
+      "command": "./gradlew :amethyst:installDebug",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run ndb-bridge Tests",
+      "type": "shell",
+      "command": "./gradlew :ndb-bridge:jvmTest",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run marmot-bridge Tests",
+      "type": "shell",
+      "command": "./gradlew :marmot-bridge:jvmTest",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean Build",
+      "type": "shell",
+      "command": "make clean",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -29,10 +29,13 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Amethyst"
+rootProject.name = "ATNA"
 include ':amethyst'
 include ':benchmark'
 include ':quartz'
 include ':commons'
 include ':ammolite'
 include ':desktopApp'
+include ':ndb-bridge'
+include ':marmot-bridge'
+include ':bug-reporter'

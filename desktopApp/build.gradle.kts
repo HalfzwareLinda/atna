@@ -57,12 +57,12 @@ compose.desktop {
         mainClass = "com.vitorpamplona.amethyst.desktop.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Deb)
 
-            packageName = "Amethyst"
+            packageName = "atna"
             packageVersion = "1.0.0"
-            description = "Nostr client for desktop"
-            vendor = "Amethyst Contributors"
+            description = "ATNA - All The Nostr Apps"
+            vendor = "ATNA Contributors"
 
             macOS {
                 bundleID = "com.vitorpamplona.amethyst.desktop"
@@ -71,7 +71,7 @@ compose.desktop {
 
             windows {
                 iconFile.set(project.file("src/jvmMain/resources/icon.ico"))
-                menuGroup = "Amethyst"
+                menuGroup = "ATNA"
                 upgradeUuid = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
             }
 
