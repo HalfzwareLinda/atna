@@ -115,6 +115,22 @@ class NostrClient(
                 activeRequests.desiredRelays.value + activeCounts.relays.value + eventOutbox.relays.value,
             )
 
+    /**
+     * Pre-registers a relay in the pool so it connects immediately
+     * when connect() is called, even before any subscriptions exist.
+     */
+    fun addRelayToPool(url: NormalizedRelayUrl) {
+        relayPool.addRelay(url)
+    }
+
+    /**
+     * Removes all relays from the pool, disconnecting them.
+     * Call before re-adding relays on logout/login to clear stale state.
+     */
+    fun removeAllRelaysFromPool() {
+        relayPool.removeAllRelays()
+    }
+
     // Reconnects all relays that may have disconnected
     override fun connect() {
         isActive = true

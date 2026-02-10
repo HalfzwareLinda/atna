@@ -28,6 +28,7 @@ object DesktopHttpClient {
     private val client: OkHttpClient by lazy {
         OkHttpClient
             .Builder()
+            .connectionPool(okhttp3.ConnectionPool(20, 5, TimeUnit.MINUTES))
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -37,4 +38,6 @@ object DesktopHttpClient {
     }
 
     fun getHttpClient(url: NormalizedRelayUrl): OkHttpClient = client
+
+    fun getHttpClientForUrl(url: String = ""): OkHttpClient = client
 }

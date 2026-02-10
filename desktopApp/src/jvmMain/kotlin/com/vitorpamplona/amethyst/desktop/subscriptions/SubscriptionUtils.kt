@@ -109,6 +109,65 @@ fun rememberSubscription(
 }
 
 /**
+ * Configuration for an outbox-routed relay subscription.
+ * Each relay receives only the filters relevant to users on that relay.
+ */
+data class RoutedSubscriptionConfig(
+    val subId: String,
+    val filterMap: Map<NormalizedRelayUrl, List<Filter>>,
+    val onEvent: (Event, Boolean, NormalizedRelayUrl, List<Filter>?) -> Unit,
+    val onEose: (NormalizedRelayUrl, List<Filter>?) -> Unit = { _, _ -> },
+)
+
+/**
+ * Composable that remembers a routed subscription (outbox model) and
+ * automatically unsubscribes on dispose.
+ */
+@Composable
+fun rememberRoutedSubscription(
+    vararg keys: Any?,
+    relayManager: RelayConnectionManager,
+    config: () -> RoutedSubscriptionConfig?,
+): SubscriptionHandle? {
+    val subscription = remember(*keys) { config() }
+
+    DisposableEffect(*keys, subscription?.subId) {
+        subscription?.let { cfg ->
+            if (cfg.filterMap.isNotEmpty()) {
+                relayManager.subscribeRouted(
+                    subId = cfg.subId,
+                    filterMap = cfg.filterMap,
+                    listener =
+                        object : IRequestListener {
+                            override fun onEvent(
+                                event: Event,
+                                isLive: Boolean,
+                                relay: NormalizedRelayUrl,
+                                forFilters: List<Filter>?,
+                            ) {
+                                cfg.onEvent(event, isLive, relay, forFilters)
+                            }
+
+                            override fun onEose(
+                                relay: NormalizedRelayUrl,
+                                forFilters: List<Filter>?,
+                            ) {
+                                cfg.onEose(relay, forFilters)
+                            }
+                        },
+                )
+            }
+        }
+
+        onDispose {
+            subscription?.let { relayManager.unsubscribe(it.subId) }
+        }
+    }
+
+    return subscription?.let { SubscriptionHandle(it.subId, { relayManager.unsubscribe(it.subId) }) }
+}
+
+/**
  * Generates a unique subscription ID with timestamp.
  */
 fun generateSubId(prefix: String): String = "$prefix-${System.currentTimeMillis()}"

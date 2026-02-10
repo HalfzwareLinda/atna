@@ -31,11 +31,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,14 +51,20 @@ import com.vitorpamplona.amethyst.commons.ui.components.EmptyState
 import com.vitorpamplona.amethyst.commons.ui.components.LoadingState
 import com.vitorpamplona.amethyst.desktop.account.AccountState
 import com.vitorpamplona.amethyst.desktop.cache.DesktopLocalCache
+import com.vitorpamplona.amethyst.desktop.network.DesktopOutboxResolver
 import com.vitorpamplona.amethyst.desktop.network.DesktopRelayConnectionManager
 import com.vitorpamplona.amethyst.desktop.subscriptions.FeedMode
 import com.vitorpamplona.amethyst.desktop.subscriptions.createContactListSubscription
 import com.vitorpamplona.amethyst.desktop.subscriptions.createFollowingLongFormFeedSubscription
 import com.vitorpamplona.amethyst.desktop.subscriptions.createLongFormFeedSubscription
+import com.vitorpamplona.amethyst.desktop.subscriptions.createOutboxFollowingLongFormFeedSubscription
+import com.vitorpamplona.amethyst.desktop.subscriptions.rememberRoutedSubscription
 import com.vitorpamplona.amethyst.desktop.subscriptions.rememberSubscription
 import com.vitorpamplona.quartz.nip02FollowList.ContactListEvent
 import com.vitorpamplona.quartz.nip23LongContent.LongTextNoteEvent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -160,6 +166,7 @@ fun ReadsScreen(
     relayManager: DesktopRelayConnectionManager,
     localCache: DesktopLocalCache,
     account: AccountState.LoggedIn? = null,
+    outboxResolver: DesktopOutboxResolver? = null,
     onNavigateToProfile: (String) -> Unit = {},
     onNavigateToArticle: (String) -> Unit = {},
 ) {
@@ -178,10 +185,23 @@ fun ReadsScreen(
         }
     val events by eventState.items.collectAsState()
 
-    var feedMode by remember { mutableStateOf(FeedMode.GLOBAL) }
+    val feedMode = FeedMode.FOLLOWING
     var followedUsers by remember { mutableStateOf<Set<String>>(emptySet()) }
     var eoseReceivedCount by remember { mutableStateOf(0) }
     val initialLoadComplete = eoseReceivedCount > 0
+
+    // Timeout: if no contact list arrives within 30s, proceed with empty set
+    // Keys on connectedRelays.size so timeout resets on reconnection
+    var followedUsersTimedOut by remember { mutableStateOf(false) }
+    LaunchedEffect(feedMode, connectedRelays.size) {
+        if (feedMode == FeedMode.FOLLOWING) {
+            followedUsersTimedOut = false
+            delay(30_000)
+            if (followedUsers.isEmpty()) {
+                followedUsersTimedOut = true
+            }
+        }
+    }
 
     // Load followed users for Following feed mode
     rememberSubscription(relayStatuses, account, feedMode, relayManager = relayManager) {
@@ -192,7 +212,8 @@ fun ReadsScreen(
                 pubKeyHex = account.pubKeyHex,
                 onEvent = { event, _, _, _ ->
                     if (event is ContactListEvent) {
-                        followedUsers = event.verifiedFollowKeySet()
+                        val users = event.verifiedFollowKeySet()
+                        scope.launch(Dispatchers.Main) { followedUsers = users }
                     }
                 },
             )
@@ -207,8 +228,28 @@ fun ReadsScreen(
         eoseReceivedCount = 0
     }
 
-    // Subscribe to long-form content feed
-    rememberSubscription(relayStatuses, feedMode, followedUsers, relayManager = relayManager) {
+    // Outbox-routed subscription for FOLLOWING mode (when outbox resolver available)
+    rememberRoutedSubscription(relayStatuses, feedMode, followedUsers, outboxResolver, relayManager = relayManager) {
+        if (feedMode != FeedMode.FOLLOWING || followedUsers.isEmpty() || outboxResolver == null) {
+            return@rememberRoutedSubscription null
+        }
+        createOutboxFollowingLongFormFeedSubscription(
+            outboxResolver = outboxResolver,
+            followedUsers = followedUsers.toList(),
+            fallbackRelays = relayStatuses.keys,
+            onEvent = { event, _, _, _ ->
+                if (event is LongTextNoteEvent) {
+                    eventState.addItem(event)
+                }
+            },
+            onEose = { _, _ ->
+                scope.launch(Dispatchers.Main) { eoseReceivedCount++ }
+            },
+        )
+    }
+
+    // Broadcast subscription for GLOBAL mode or FOLLOWING fallback (no outbox)
+    rememberSubscription(relayStatuses, feedMode, followedUsers, outboxResolver, relayManager = relayManager) {
         val configuredRelays = relayStatuses.keys
         if (configuredRelays.isEmpty()) {
             return@rememberSubscription null
@@ -229,6 +270,8 @@ fun ReadsScreen(
                 )
             }
             FeedMode.FOLLOWING -> {
+                // Only use broadcast fallback when no outbox resolver
+                if (outboxResolver != null) return@rememberSubscription null
                 if (followedUsers.isNotEmpty()) {
                     createFollowingLongFormFeedSubscription(
                         relays = configuredRelays,
@@ -250,50 +293,19 @@ fun ReadsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        "Reads",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-
-                    // Feed mode selector
-                    if (account != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            FilterChip(
-                                selected = feedMode == FeedMode.GLOBAL,
-                                onClick = { feedMode = FeedMode.GLOBAL },
-                                label = { Text("Global") },
-                            )
-                            FilterChip(
-                                selected = feedMode == FeedMode.FOLLOWING,
-                                onClick = { feedMode = FeedMode.FOLLOWING },
-                                label = { Text("Following") },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
         when {
             connectedRelays.isEmpty() -> {
                 LoadingState("Connecting to relays...")
             }
-            feedMode == FeedMode.FOLLOWING && followedUsers.isEmpty() -> {
+            feedMode == FeedMode.FOLLOWING && followedUsers.isEmpty() && !followedUsersTimedOut -> {
                 LoadingState("Loading followed users...")
+            }
+            feedMode == FeedMode.FOLLOWING && followedUsers.isEmpty() && followedUsersTimedOut -> {
+                EmptyState(
+                    title = "No contact list found",
+                    description = "Could not load your followed users. Check your relay connections or try switching to Global feed.",
+                    onRefresh = { relayManager.connect() },
+                )
             }
             events.isEmpty() && !initialLoadComplete -> {
                 LoadingState("Loading articles...")
