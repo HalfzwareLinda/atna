@@ -20,7 +20,6 @@
  */
 package com.vitorpamplona.amethyst.commons.keystorage
 
-import com.github.javakeyring.BackendNotSupportedException
 import com.github.javakeyring.Keyring
 import com.github.javakeyring.PasswordAccessException
 import kotlinx.coroutines.Dispatchers
@@ -97,12 +96,16 @@ actual class SecureKeyStorage private actual constructor() {
                 } else {
                     saveToFallback(npub, privKeyHex)
                 }
-            } catch (e: BackendNotSupportedException) {
-                keyringAvailable = false
-                println("OS keyring not available, using fallback encrypted storage")
-                saveToFallback(npub, privKeyHex)
-            } catch (e: Exception) {
-                throw SecureStorageException("Failed to save private key", e)
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) because java-keyring can throw
+                // NoClassDefFoundError on Linux when macOS keychain classes are missing
+                if (keyringAvailable) {
+                    keyringAvailable = false
+                    System.err.println("OS keyring not available, using fallback encrypted storage: ${e.message}")
+                    saveToFallback(npub, privKeyHex)
+                } else {
+                    throw SecureStorageException("Failed to save private key", e)
+                }
             }
         }
     }
@@ -115,14 +118,18 @@ actual class SecureKeyStorage private actual constructor() {
                 } else {
                     getFromFallback(npub)
                 }
-            } catch (e: BackendNotSupportedException) {
-                keyringAvailable = false
-                println("OS keyring not available, using fallback encrypted storage")
-                getFromFallback(npub)
-            } catch (e: PasswordAccessException) {
-                null // Key doesn't exist
-            } catch (e: Exception) {
-                throw SecureStorageException("Failed to retrieve private key", e)
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) because java-keyring can throw
+                // NoClassDefFoundError on Linux when macOS keychain classes are missing
+                if (keyringAvailable) {
+                    keyringAvailable = false
+                    System.err.println("OS keyring not available, using fallback encrypted storage: ${e.message}")
+                    getFromFallback(npub)
+                } else if (e is PasswordAccessException) {
+                    null
+                } else {
+                    throw SecureStorageException("Failed to retrieve private key", e)
+                }
             }
         }
 
@@ -134,11 +141,16 @@ actual class SecureKeyStorage private actual constructor() {
                 } else {
                     deleteFromFallback(npub)
                 }
-            } catch (e: BackendNotSupportedException) {
-                keyringAvailable = false
-                deleteFromFallback(npub)
-            } catch (e: Exception) {
-                throw SecureStorageException("Failed to delete private key", e)
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) because java-keyring can throw
+                // NoClassDefFoundError on Linux when macOS keychain classes are missing
+                if (keyringAvailable) {
+                    keyringAvailable = false
+                    System.err.println("OS keyring not available, using fallback encrypted storage: ${e.message}")
+                    deleteFromFallback(npub)
+                } else {
+                    throw SecureStorageException("Failed to delete private key", e)
+                }
             }
         }
 
@@ -311,22 +323,25 @@ actual class SecureKeyStorage private actual constructor() {
 
     private fun getFallbackPassword(): String {
         if (fallbackPassword == null) {
-            println("OS keyring not available. Fallback encrypted storage requires a password.")
-            val console = System.console()
-            fallbackPassword =
-                if (console != null) {
-                    // Use Console.readPassword() for masked input
-                    val password = console.readPassword("Enter master password: ")
-                    password?.let {
-                        val str = String(it)
-                        it.fill('\u0000') // Clear the char array from memory
-                        str
-                    } ?: throw SecureStorageException("Password required for fallback storage")
+            // Auto-derive a machine-specific password from a stable random salt file
+            // and system properties. This avoids blocking on console input in GUI apps.
+            val fallbackDir = getFallbackFile().parentFile
+            val saltFile = File(fallbackDir, ".salt")
+            val salt =
+                if (saltFile.exists()) {
+                    saltFile.readText()
                 } else {
-                    // Fallback for non-interactive environments (testing, etc.)
-                    print("Enter master password: ")
-                    readLine() ?: throw SecureStorageException("Password required for fallback storage")
+                    fallbackDir?.mkdirs()
+                    val newSalt =
+                        Base64.getEncoder().encodeToString(
+                            ByteArray(32).apply { SecureRandom().nextBytes(this) },
+                        )
+                    saltFile.writeText(newSalt)
+                    setRestrictivePermissions(saltFile)
+                    newSalt
                 }
+            val systemInfo = "${System.getProperty("user.name")}@${System.getProperty("os.name")}"
+            fallbackPassword = "$systemInfo:$salt"
         }
         return fallbackPassword!!
     }

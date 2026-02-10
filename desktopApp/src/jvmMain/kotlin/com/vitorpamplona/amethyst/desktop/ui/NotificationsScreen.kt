@@ -20,6 +20,7 @@
  */
 package com.vitorpamplona.amethyst.desktop.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,7 +55,6 @@ import com.vitorpamplona.amethyst.commons.icons.Zap
 import com.vitorpamplona.amethyst.commons.state.EventCollectionState
 import com.vitorpamplona.amethyst.commons.ui.components.EmptyState
 import com.vitorpamplona.amethyst.commons.ui.components.LoadingState
-import com.vitorpamplona.amethyst.commons.ui.feed.FeedHeader
 import com.vitorpamplona.amethyst.commons.util.toShortDisplay
 import com.vitorpamplona.amethyst.commons.util.toTimeAgo
 import com.vitorpamplona.amethyst.desktop.account.AccountState
@@ -71,6 +71,8 @@ import com.vitorpamplona.quartz.nip18Reposts.RepostEvent
 import com.vitorpamplona.quartz.nip19Bech32.toNpub
 import com.vitorpamplona.quartz.nip25Reactions.ReactionEvent
 import com.vitorpamplona.quartz.nip57Zaps.LnZapEvent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Notification types for display.
@@ -79,6 +81,18 @@ sealed class NotificationItem(
     open val event: Event,
     open val timestamp: Long,
 ) {
+    /** Returns the note ID this notification refers to (original note for replies/reactions/zaps, own ID for mentions). */
+    fun targetNoteId(): String {
+        val eTags = event.tags.filter { it.size > 1 && it[0] == "e" }
+        return when (this) {
+            is Mention -> event.id
+            is Reply -> eTags.lastOrNull()?.getOrNull(1) ?: event.id
+            is Reaction -> eTags.lastOrNull()?.getOrNull(1) ?: event.id
+            is Repost -> eTags.lastOrNull()?.getOrNull(1) ?: event.id
+            is Zap -> eTags.lastOrNull()?.getOrNull(1) ?: event.id
+        }
+    }
+
     data class Mention(
         override val event: Event,
         override val timestamp: Long,
@@ -111,6 +125,7 @@ sealed class NotificationItem(
 fun NotificationsScreen(
     relayManager: DesktopRelayConnectionManager,
     localCache: DesktopLocalCache,
+    onNavigateToThread: (String) -> Unit = {},
     account: AccountState.LoggedIn,
     subscriptionsCoordinator: DesktopRelaySubscriptionsCoordinator? = null,
 ) {
@@ -192,7 +207,7 @@ fun NotificationsScreen(
                     notificationState.addItem(notification)
                 },
                 onEose = { _, _ ->
-                    eoseReceivedCount++
+                    scope.launch(Dispatchers.Main) { eoseReceivedCount++ }
                 },
             )
         } else {
@@ -201,14 +216,6 @@ fun NotificationsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        FeedHeader(
-            title = "Notifications",
-            connectedRelayCount = connectedRelays.size,
-            onRefresh = { relayManager.connect() },
-        )
-
-        Spacer(Modifier.height(16.dp))
-
         if (connectedRelays.isEmpty()) {
             LoadingState("Connecting to relays...")
         } else if (notifications.isEmpty() && !initialLoadComplete) {
@@ -224,7 +231,7 @@ fun NotificationsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(notifications, key = { it.event.id }) { notification ->
-                    NotificationCard(notification, localCache)
+                    NotificationCard(notification, localCache, onNavigateToThread)
                 }
             }
         }
@@ -235,6 +242,7 @@ fun NotificationsScreen(
 fun NotificationCard(
     notification: NotificationItem,
     localCache: DesktopLocalCache,
+    onNavigateToThread: (String) -> Unit = {},
 ) {
     val (icon, label, color) =
         when (notification) {
@@ -267,7 +275,11 @@ fun NotificationCard(
             }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToThread(notification.targetNoteId()) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         // Header: icon + label + author + time
         Row(

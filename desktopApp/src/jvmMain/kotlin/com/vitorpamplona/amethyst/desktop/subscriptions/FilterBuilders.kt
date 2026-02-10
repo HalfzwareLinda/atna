@@ -376,6 +376,72 @@ object FilterBuilders {
         )
 
     /**
+     * Creates a filter for media events (NIP-68 pictures, NIP-71 videos, NIP-94 file metadata).
+     * Kinds: 20 (picture), 21 (video normal), 22 (video short), 34235 (video horizontal),
+     * 34236 (video vertical), 1063 (file metadata).
+     */
+    fun mediaGlobal(
+        limit: Int? = null,
+        since: Long? = null,
+        until: Long? = null,
+    ): Filter =
+        Filter(
+            kinds = listOf(20, 21, 22, 34235, 34236, 1063),
+            limit = limit,
+            since = since,
+            until = until,
+        )
+
+    /**
+     * Creates a filter for media events from specific authors.
+     */
+    fun mediaFromAuthors(
+        authors: List<String>,
+        limit: Int? = null,
+        since: Long? = null,
+        until: Long? = null,
+    ): Filter =
+        Filter(
+            kinds = listOf(20, 21, 22, 34235, 34236, 1063),
+            authors = authors,
+            limit = limit,
+            since = since,
+            until = until,
+        )
+
+    /**
+     * Creates a filter for live activity events (kind 30311, NIP-53).
+     */
+    fun liveActivitiesGlobal(
+        limit: Int? = null,
+        since: Long? = null,
+        until: Long? = null,
+    ): Filter =
+        Filter(
+            kinds = listOf(30311),
+            limit = limit,
+            since = since,
+            until = until,
+        )
+
+    /**
+     * Creates a filter for live activity events from specific authors.
+     */
+    fun liveActivitiesFromAuthors(
+        authors: List<String>,
+        limit: Int? = null,
+        since: Long? = null,
+        until: Long? = null,
+    ): Filter =
+        Filter(
+            kinds = listOf(30311),
+            authors = authors,
+            limit = limit,
+            since = since,
+            until = until,
+        )
+
+    /**
      * Creates a filter for long-form content (kind 30023, NIP-23).
      *
      * @param limit Maximum number of events to request

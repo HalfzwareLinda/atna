@@ -210,6 +210,27 @@ class EventPersistenceServiceTest {
     }
 
     @Test
+    fun testMaxSizeMBParameterIsAccepted() {
+        val service = EventPersistenceService(createScope(), maxSizeMB = 2048)
+        assertNotNull(service)
+        assertFalse(service.isRunning)
+    }
+
+    @Test
+    fun testServiceWithMaxSizeMBStartsAndStops() {
+        val dbPath = System.getProperty("java.io.tmpdir") + "/atna-test-maxsize-" + System.currentTimeMillis()
+        val service = EventPersistenceService(createScope(), maxSizeMB = 64)
+        try {
+            service.start(dbPath)
+            assertTrue(service.isRunning)
+            service.stop()
+            assertFalse(service.isRunning)
+        } finally {
+            java.io.File(dbPath).deleteRecursively()
+        }
+    }
+
+    @Test
     fun testEphemeralEventsAreStillDropped() {
         val dbPath = System.getProperty("java.io.tmpdir") + "/atna-test-ephem-" + System.currentTimeMillis()
         val service = EventPersistenceService(createScope())

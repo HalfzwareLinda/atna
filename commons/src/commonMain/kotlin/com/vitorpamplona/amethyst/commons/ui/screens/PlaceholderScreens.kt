@@ -35,6 +35,10 @@ import com.vitorpamplona.amethyst.commons.resources.screen_notifications_descrip
 import com.vitorpamplona.amethyst.commons.resources.screen_notifications_title
 import com.vitorpamplona.amethyst.commons.resources.screen_search_description
 import com.vitorpamplona.amethyst.commons.resources.screen_search_title
+import com.vitorpamplona.amethyst.commons.resources.screen_trust_domain_description
+import com.vitorpamplona.amethyst.commons.resources.screen_trust_domain_title
+import com.vitorpamplona.amethyst.commons.resources.screen_wallet_description
+import com.vitorpamplona.amethyst.commons.resources.screen_wallet_title
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -92,6 +96,30 @@ fun NotificationsPlaceholder(modifier: Modifier = Modifier) {
     PlaceholderScreen(
         title = stringResource(Res.string.screen_notifications_title),
         description = stringResource(Res.string.screen_notifications_description),
+        modifier = modifier,
+    )
+}
+
+/**
+ * Wallet screen placeholder.
+ */
+@Composable
+fun WalletPlaceholder(modifier: Modifier = Modifier) {
+    PlaceholderScreen(
+        title = stringResource(Res.string.screen_wallet_title),
+        description = stringResource(Res.string.screen_wallet_description),
+        modifier = modifier,
+    )
+}
+
+/**
+ * Trust Domain screen placeholder.
+ */
+@Composable
+fun TrustDomainPlaceholder(modifier: Modifier = Modifier) {
+    PlaceholderScreen(
+        title = stringResource(Res.string.screen_trust_domain_title),
+        description = stringResource(Res.string.screen_trust_domain_description),
         modifier = modifier,
     )
 }

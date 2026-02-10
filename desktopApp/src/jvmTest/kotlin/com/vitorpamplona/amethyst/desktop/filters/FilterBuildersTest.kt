@@ -507,4 +507,140 @@ class FilterBuildersTest {
         assertNotNull(filter.tags)
         assertEquals(listOf("bitcoin"), filter.tags!!["t"])
     }
+
+    // Media filter tests
+
+    @Test
+    fun testMediaGlobal() {
+        val filter = FilterBuilders.mediaGlobal(limit = 50)
+
+        assertEquals(listOf(20, 21, 22, 34235, 34236, 1063), filter.kinds)
+        assertEquals(50, filter.limit)
+        assertNull(filter.authors)
+        assertNull(filter.tags)
+    }
+
+    @Test
+    fun testMediaGlobalWithTimeRange() {
+        val since = 1609459200L
+        val until = 1640995200L
+        val filter = FilterBuilders.mediaGlobal(limit = 30, since = since, until = until)
+
+        assertEquals(listOf(20, 21, 22, 34235, 34236, 1063), filter.kinds)
+        assertEquals(30, filter.limit)
+        assertEquals(since, filter.since)
+        assertEquals(until, filter.until)
+    }
+
+    @Test
+    fun testMediaFromAuthors() {
+        val authors = listOf(testPubKey, testPubKey2)
+        val filter = FilterBuilders.mediaFromAuthors(authors, limit = 25)
+
+        assertEquals(listOf(20, 21, 22, 34235, 34236, 1063), filter.kinds)
+        assertEquals(authors, filter.authors)
+        assertEquals(25, filter.limit)
+    }
+
+    @Test
+    fun testMediaFromAuthorsWithTimeRange() {
+        val authors = listOf(testPubKey)
+        val since = 1609459200L
+        val filter = FilterBuilders.mediaFromAuthors(authors, limit = 10, since = since)
+
+        assertEquals(listOf(20, 21, 22, 34235, 34236, 1063), filter.kinds)
+        assertEquals(authors, filter.authors)
+        assertEquals(10, filter.limit)
+        assertEquals(since, filter.since)
+    }
+
+    // Live activity filter tests
+
+    @Test
+    fun testLiveActivitiesGlobal() {
+        val filter = FilterBuilders.liveActivitiesGlobal(limit = 50)
+
+        assertEquals(listOf(30311), filter.kinds)
+        assertEquals(50, filter.limit)
+        assertNull(filter.authors)
+        assertNull(filter.tags)
+    }
+
+    @Test
+    fun testLiveActivitiesGlobalWithTimeRange() {
+        val since = 1609459200L
+        val until = 1640995200L
+        val filter = FilterBuilders.liveActivitiesGlobal(limit = 20, since = since, until = until)
+
+        assertEquals(listOf(30311), filter.kinds)
+        assertEquals(20, filter.limit)
+        assertEquals(since, filter.since)
+        assertEquals(until, filter.until)
+    }
+
+    @Test
+    fun testLiveActivitiesFromAuthors() {
+        val authors = listOf(testPubKey, testPubKey2)
+        val filter = FilterBuilders.liveActivitiesFromAuthors(authors, limit = 30)
+
+        assertEquals(listOf(30311), filter.kinds)
+        assertEquals(authors, filter.authors)
+        assertEquals(30, filter.limit)
+    }
+
+    @Test
+    fun testLiveActivitiesFromAuthorsWithTimeRange() {
+        val authors = listOf(testPubKey)
+        val since = 1609459200L
+        val filter = FilterBuilders.liveActivitiesFromAuthors(authors, limit = 15, since = since)
+
+        assertEquals(listOf(30311), filter.kinds)
+        assertEquals(authors, filter.authors)
+        assertEquals(15, filter.limit)
+        assertEquals(since, filter.since)
+    }
+
+    // Integration scenarios for new feed types
+
+    @Test
+    fun testMediaFeedScenario() {
+        val filter = FilterBuilders.mediaGlobal(limit = 50)
+
+        assertTrue(!filter.isEmpty())
+        assertEquals(6, filter.kinds!!.size)
+        assertTrue(20 in filter.kinds!!)
+        assertTrue(21 in filter.kinds!!)
+        assertTrue(22 in filter.kinds!!)
+        assertTrue(34235 in filter.kinds!!)
+        assertTrue(34236 in filter.kinds!!)
+        assertTrue(1063 in filter.kinds!!)
+    }
+
+    @Test
+    fun testFollowingMediaFeedScenario() {
+        val followedUsers = listOf(testPubKey, testPubKey2)
+        val filter = FilterBuilders.mediaFromAuthors(followedUsers, limit = 50)
+
+        assertTrue(!filter.isEmpty())
+        assertEquals(followedUsers, filter.authors)
+        assertEquals(6, filter.kinds!!.size)
+    }
+
+    @Test
+    fun testLiveFeedScenario() {
+        val filter = FilterBuilders.liveActivitiesGlobal(limit = 50)
+
+        assertTrue(!filter.isEmpty())
+        assertEquals(listOf(30311), filter.kinds)
+    }
+
+    @Test
+    fun testFollowingLiveFeedScenario() {
+        val followedUsers = listOf(testPubKey, testPubKey2)
+        val filter = FilterBuilders.liveActivitiesFromAuthors(followedUsers, limit = 50)
+
+        assertTrue(!filter.isEmpty())
+        assertEquals(followedUsers, filter.authors)
+        assertEquals(listOf(30311), filter.kinds)
+    }
 }

@@ -44,10 +44,25 @@ class CrashHandler(
     fun install() {
         previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            if (isNonFatalNativeDisposal(throwable)) {
+                // GStreamer native object disposal race — non-fatal, don't crash the app.
+                // This happens when AWT-EventQueue is mid-paint while the GStreamer
+                // pipeline is being torn down. Safe to swallow.
+                return@setDefaultUncaughtExceptionHandler
+            }
             saveCrashData(thread, throwable)
             previousHandler?.uncaughtException(thread, throwable)
         }
     }
+
+    /**
+     * Detects the GStreamer "Native object has been disposed" race condition
+     * that occurs on AWT-EventQueue when a video composable is removed while
+     * GStreamer is still painting a frame. This is non-fatal.
+     */
+    private fun isNonFatalNativeDisposal(throwable: Throwable): Boolean =
+        throwable is IllegalStateException &&
+            throwable.message?.contains("Native object has been disposed") == true
 
     private fun saveCrashData(
         thread: Thread,

@@ -21,9 +21,10 @@
 package com.vitorpamplona.amethyst.desktop.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,7 +32,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +58,7 @@ import com.vitorpamplona.amethyst.desktop.ui.note.NoteCard
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip51Lists.bookmarkList.BookmarkListEvent
 import com.vitorpamplona.quartz.nip51Lists.bookmarkList.tags.EventBookmark
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 private enum class BookmarkTab { PUBLIC, PRIVATE }
@@ -75,6 +76,7 @@ fun BookmarksScreen(
     onNavigateToProfile: (String) -> Unit = {},
     onNavigateToThread: (String) -> Unit = {},
     onZapFeedback: (ZapFeedback) -> Unit = {},
+    onQuote: (com.vitorpamplona.quartz.nip01Core.core.Event) -> Unit = {},
 ) {
     val relayStatuses by relayManager.relayStatuses.collectAsState()
     val scope = rememberCoroutineScope()
@@ -137,19 +139,22 @@ fun BookmarksScreen(
                 relays = configuredRelays,
                 onEvent = { event, _, _, _ ->
                     if (event is BookmarkListEvent) {
-                        bookmarkList = event
-                        // Extract public bookmarked event IDs
                         val pubIds =
                             event
                                 .publicBookmarks()
                                 .filterIsInstance<EventBookmark>()
                                 .map { it.eventId }
-                        publicBookmarkIds = pubIds
+                        scope.launch(Dispatchers.Main) {
+                            bookmarkList = event
+                            publicBookmarkIds = pubIds
+                        }
                     }
                 },
                 onEose = { _, _ ->
-                    hasReceivedEose = true
-                    isLoading = false
+                    scope.launch(Dispatchers.Main) {
+                        hasReceivedEose = true
+                        isLoading = false
+                    }
                 },
             )
         } else {
@@ -222,43 +227,34 @@ fun BookmarksScreen(
         }
     }
 
+    // Observe metadata version so profile names/pictures update when metadata arrives
+    @Suppress("UNUSED_VARIABLE")
+    val metadataVersion by localCache.metadataVersion.collectAsState()
+
     val currentEvents = if (selectedTab == BookmarkTab.PUBLIC) publicEvents else privateEvents
     val currentBookmarkIds = if (selectedTab == BookmarkTab.PUBLIC) publicBookmarkIds else privateBookmarkIds
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header with tabs
+        // Tab selector
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement =
+                androidx.compose.foundation.layout.Arrangement
+                    .spacedBy(8.dp),
         ) {
-            Text(
-                text = "Bookmarks",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
+            FilterChip(
+                selected = selectedTab == BookmarkTab.PUBLIC,
+                onClick = { selectedTab = BookmarkTab.PUBLIC },
+                label = { Text("Public (${publicBookmarkIds.size})") },
             )
-
-            Spacer(Modifier.weight(1f))
-
-            // Tab selector
-            Row(
-                horizontalArrangement =
-                    androidx.compose.foundation.layout.Arrangement
-                        .spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = selectedTab == BookmarkTab.PUBLIC,
-                    onClick = { selectedTab = BookmarkTab.PUBLIC },
-                    label = { Text("Public (${publicBookmarkIds.size})") },
-                )
-                FilterChip(
-                    selected = selectedTab == BookmarkTab.PRIVATE,
-                    onClick = { selectedTab = BookmarkTab.PRIVATE },
-                    label = { Text("Private (${privateBookmarkIds.size})") },
-                )
-            }
+            FilterChip(
+                selected = selectedTab == BookmarkTab.PRIVATE,
+                onClick = { selectedTab = BookmarkTab.PRIVATE },
+                label = { Text("Private (${privateBookmarkIds.size})") },
+            )
         }
 
         // Content
@@ -282,60 +278,74 @@ fun BookmarksScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(currentEvents, key = { it.id }) { event ->
-                        Column(
-                            modifier =
-                                Modifier.clickable {
-                                    onNavigateToThread(event.id)
-                                },
-                        ) {
-                            NoteCard(
-                                note = event.toNoteDisplayData(localCache),
-                                onAuthorClick = onNavigateToProfile,
-                            )
-                            NoteActionsRow(
+                        val noteData = remember(event.id, metadataVersion) { event.toNoteDisplayData(localCache) }
+                        val onBookmarkChangedHandler: (BookmarkListEvent) -> Unit = { newList ->
+                            bookmarkList = newList
+                            val pubIds =
+                                newList
+                                    .publicBookmarks()
+                                    .filterIsInstance<EventBookmark>()
+                                    .map { it.eventId }
+                            publicBookmarkIds = pubIds
+                            scope.launch {
+                                try {
+                                    val privateBookmarks = newList.privateBookmarks(account.signer)
+                                    val privIds =
+                                        privateBookmarks
+                                            ?.filterIsInstance<EventBookmark>()
+                                            ?.map { it.eventId }
+                                            ?: emptyList()
+                                    privateBookmarkIds = privIds
+                                } catch (e: Exception) {
+                                    // Keep existing private IDs if decryption fails
+                                }
+                            }
+                            if (!pubIds.contains(event.id)) {
+                                publicEventState.removeItem(event.id)
+                            }
+                            if (!privateBookmarkIds.contains(event.id)) {
+                                privateEventState.removeItem(event.id)
+                            }
+                        }
+                        Box {
+                            Column(
+                                modifier =
+                                    Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { onNavigateToThread(event.id) },
+                                    ),
+                            ) {
+                                NoteCard(
+                                    note = noteData,
+                                    onAuthorClick = onNavigateToProfile,
+                                    localCache = localCache,
+                                    onMentionClick = onNavigateToProfile,
+                                    onNoteClick = onNavigateToThread,
+                                )
+                                NoteActionsRow(
+                                    event = event,
+                                    relayManager = relayManager,
+                                    localCache = localCache,
+                                    account = account,
+                                    nwcConnection = nwcConnection,
+                                    onReplyClick = { onNavigateToThread(event.id) },
+                                    onQuoteClick = { onQuote(event) },
+                                    onZapFeedback = onZapFeedback,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                    isBookmarked = true,
+                                    bookmarkList = bookmarkList,
+                                    onBookmarkChanged = onBookmarkChangedHandler,
+                                )
+                            }
+                            NoteOverflowMenu(
                                 event = event,
                                 relayManager = relayManager,
-                                localCache = localCache,
                                 account = account,
-                                nwcConnection = nwcConnection,
-                                onReplyClick = { onNavigateToThread(event.id) },
-                                onZapFeedback = onZapFeedback,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                                 isBookmarked = true,
                                 bookmarkList = bookmarkList,
-                                onBookmarkChanged = { newList ->
-                                    bookmarkList = newList
-                                    // Update public bookmark IDs
-                                    val pubIds =
-                                        newList
-                                            .publicBookmarks()
-                                            .filterIsInstance<EventBookmark>()
-                                            .map { it.eventId }
-                                    publicBookmarkIds = pubIds
-
-                                    // Decrypt and update private bookmark IDs
-                                    scope.launch {
-                                        try {
-                                            val privateBookmarks = newList.privateBookmarks(account.signer)
-                                            val privIds =
-                                                privateBookmarks
-                                                    ?.filterIsInstance<EventBookmark>()
-                                                    ?.map { it.eventId }
-                                                    ?: emptyList()
-                                            privateBookmarkIds = privIds
-                                        } catch (e: Exception) {
-                                            // Keep existing private IDs if decryption fails
-                                        }
-                                    }
-
-                                    // Remove unbookmarked event from appropriate list
-                                    if (!pubIds.contains(event.id)) {
-                                        publicEventState.removeItem(event.id)
-                                    }
-                                    if (!privateBookmarkIds.contains(event.id)) {
-                                        privateEventState.removeItem(event.id)
-                                    }
-                                },
+                                onBookmarkChanged = onBookmarkChangedHandler,
+                                modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 4.dp),
                             )
                         }
                         HorizontalDivider(thickness = 1.dp)

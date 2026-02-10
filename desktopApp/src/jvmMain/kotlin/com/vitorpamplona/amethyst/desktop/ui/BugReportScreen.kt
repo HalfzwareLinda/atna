@@ -65,13 +65,6 @@ fun DesktopBugReportScreen() {
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
     ) {
-        Text(
-            text = "Report Bug",
-            style = MaterialTheme.typography.headlineMedium,
-        )
-
-        Spacer(Modifier.height(16.dp))
-
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },

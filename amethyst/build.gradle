@@ -136,6 +136,7 @@ android {
         release {
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), 'proguard-rules.pro'
             minifyEnabled = true
+            shrinkResources = true
         }
         debug {
             applicationIdSuffix '.debug'
@@ -227,8 +228,11 @@ kotlin {
 }
 
 composeCompiler {
-    reportsDestination = layout.buildDirectory.dir("compose_compiler")
-    metricsDestination = layout.buildDirectory.dir("compose_compiler")
+    // Only generate Compose compiler reports/metrics on CI to save 1-2s per local build
+    if (System.getenv("CI") != null) {
+        reportsDestination = layout.buildDirectory.dir("compose_compiler")
+        metricsDestination = layout.buildDirectory.dir("compose_compiler")
+    }
 }
 
 dependencies {

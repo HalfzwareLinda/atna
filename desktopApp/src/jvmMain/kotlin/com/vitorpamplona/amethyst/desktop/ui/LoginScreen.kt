@@ -49,10 +49,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
-fun LoginScreen(
-    accountManager: AccountManager,
-    onLoginSuccess: () -> Unit,
-) {
+fun LoginScreen(accountManager: AccountManager) {
     var showNewKeyDialog by remember { mutableStateOf(false) }
     var generatedAccount by remember { mutableStateOf<AccountState.LoggedIn?>(null) }
     val scope = rememberCoroutineScope()
@@ -80,12 +77,14 @@ fun LoginScreen(
 
         LoginCard(
             onLogin = { keyInput ->
-                accountManager.loginWithKey(keyInput).map {
-                    // Save account to secure storage (use IO dispatcher to avoid blocking UI)
+                accountManager.loginWithKey(keyInput).map { state ->
+                    // Persist credentials and activate on IO dispatcher.
+                    // persistAndActivate() saves BEFORE setting _accountState,
+                    // so the session is persisted before navigation triggers.
                     scope.launch(Dispatchers.IO) {
-                        accountManager.saveCurrentAccount()
-                        onLoginSuccess()
+                        accountManager.persistAndActivate(state)
                     }
+                    Unit
                 }
             },
             onGenerateNew = {
@@ -101,10 +100,9 @@ fun LoginScreen(
                 nsec = generatedAccount!!.nsec,
                 onContinue = {
                     showNewKeyDialog = false
-                    // Save generated account (use IO dispatcher to avoid blocking UI)
+                    // Persist credentials and activate (triggers navigation to main app)
                     scope.launch(Dispatchers.IO) {
-                        accountManager.saveCurrentAccount()
-                        onLoginSuccess()
+                        accountManager.persistAndActivate(generatedAccount!!)
                     }
                 },
             )

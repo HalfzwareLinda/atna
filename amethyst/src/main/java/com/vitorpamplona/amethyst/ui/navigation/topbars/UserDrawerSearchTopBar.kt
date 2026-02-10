@@ -67,12 +67,36 @@ fun UserDrawerSearchTopBar(
             IconButton(onClick = { nav.nav(Route.Search) }) {
                 SearchIcon(modifier = Size22Modifier, MaterialTheme.colorScheme.placeholderText)
             }
+            LoggedInUserPictureProfile(
+                accountViewModel,
+                onClick = { nav.nav(Route.Profile(accountViewModel.userProfile().pubkeyHex)) },
+            )
         },
     )
 }
 
 @Composable
 private fun LoggedInUserPictureDrawer(
+    accountViewModel: AccountViewModel,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick) {
+        val profilePicture by observeUserPicture(accountViewModel.userProfile(), accountViewModel)
+
+        RobohashFallbackAsyncImage(
+            robot = accountViewModel.userProfile().pubkeyHex,
+            model = profilePicture,
+            contentDescription = stringRes(id = R.string.your_profile_image),
+            modifier = HeaderPictureModifier,
+            contentScale = ContentScale.Crop,
+            loadProfilePicture = accountViewModel.settings.showProfilePictures(),
+            loadRobohash = accountViewModel.settings.isNotPerformanceMode(),
+        )
+    }
+}
+
+@Composable
+private fun LoggedInUserPictureProfile(
     accountViewModel: AccountViewModel,
     onClick: () -> Unit,
 ) {

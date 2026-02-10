@@ -30,11 +30,13 @@ import com.vitorpamplona.amethyst.commons.services.nwc.NwcPaymentTracker
 import com.vitorpamplona.quartz.nip01Core.core.Address
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
+import com.vitorpamplona.quartz.nip01Core.hints.HintIndexer
 import com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl
 import com.vitorpamplona.quartz.nip19Bech32.decodePublicKeyAsHexOrNull
 import com.vitorpamplona.quartz.nip47WalletConnect.LnZapPaymentRequestEvent
 import com.vitorpamplona.quartz.nip47WalletConnect.LnZapPaymentResponseEvent
+import com.vitorpamplona.quartz.nip65RelayList.AdvertisedRelayListEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -49,12 +51,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Desktop implementation of ICacheProvider.
  *
  * Provides in-memory caching of Users and Notes for the desktop application.
- * Supports searching users by name prefix for the search functionality.
+ * Uses [LruConcurrentCache] for bounded, access-ordered eviction of users,
+ * notes, and addressable notes to prevent unbounded memory growth.
  */
 class DesktopLocalCache : ICacheProvider {
-    private val users = ConcurrentHashMap<HexKey, User>()
-    private val notes = ConcurrentHashMap<HexKey, Note>()
-    private val addressableNotes = ConcurrentHashMap<String, AddressableNote>()
+    private val users = LruConcurrentCache<HexKey, User>(MAX_USERS)
+    private val notes = LruConcurrentCache<HexKey, Note>(MAX_NOTES)
+    private val addressableNotes = LruConcurrentCache<String, AddressableNote>(MAX_ADDRESSABLE)
     private val deletedEvents = ConcurrentHashMap.newKeySet<HexKey>()
 
     private val eventStream = DesktopCacheEventStream()
@@ -64,9 +67,11 @@ class DesktopLocalCache : ICacheProvider {
 
     val paymentTracker = NwcPaymentTracker()
 
+    val relayHints = HintIndexer()
+
     // ----- User operations -----
 
-    override fun getUserIfExists(pubkey: HexKey): User? = users[pubkey]
+    override fun getUserIfExists(pubkey: HexKey): User? = users.get(pubkey)
 
     override fun getOrCreateUser(pubkey: HexKey): User =
         users.getOrPut(pubkey) {
@@ -76,7 +81,7 @@ class DesktopLocalCache : ICacheProvider {
             User(pubkey, nip65Note, dmNote)
         }
 
-    override fun countUsers(predicate: (String, User) -> Boolean): Int = users.count { (key, user) -> predicate(key, user) }
+    override fun countUsers(predicate: (String, User) -> Boolean): Int = users.count { key, user -> predicate(key, user) }
 
     override fun findUsersStartingWith(
         prefix: String,
@@ -92,7 +97,8 @@ class DesktopLocalCache : ICacheProvider {
         }
 
         // Search by name/displayName/nip05/lud16
-        return users.values
+        return users
+            .values()
             .filter { user ->
                 user.metadataOrNull()?.anyNameStartsWith(prefix) == true ||
                     user.pubkeyHex.startsWith(prefix, ignoreCase = true) ||
@@ -121,6 +127,42 @@ class DesktopLocalCache : ICacheProvider {
             }
         }
     }
+
+    /**
+     * Updates a user's NIP-65 relay list (kind 10002).
+     * Stores the event on the user's nip65RelayListNote so that
+     * [User.authorRelayList] and [User.writeRelaysNorm] work correctly
+     * for outbox model routing.
+     */
+    fun consumeRelayList(event: AdvertisedRelayListEvent) {
+        val user = getOrCreateUser(event.pubKey)
+        val note = user.nip65RelayListNote
+        val existing = note.event as? AdvertisedRelayListEvent
+        if (existing == null || existing.createdAt < event.createdAt) {
+            note.loadEvent(event, user, emptyList())
+        }
+    }
+
+    /**
+     * Records relay hints for an incoming event.
+     * Populates the [HintIndexer] bloom filters so the outbox model
+     * can discover relays for users without explicit relay lists.
+     */
+    fun recordRelayHint(
+        event: Event,
+        relay: NormalizedRelayUrl,
+    ) {
+        relayHints.addEvent(event.id, relay)
+        relayHints.addKey(event.pubKey, relay)
+    }
+
+    fun stats(): CacheStats =
+        CacheStats(
+            users = users.size(),
+            notes = notes.size(),
+            addressableNotes = addressableNotes.size(),
+            deletedEvents = deletedEvents.size,
+        )
 
     // ----- NWC Payment operations -----
 
@@ -193,7 +235,7 @@ class DesktopLocalCache : ICacheProvider {
 
     // ----- Note operations -----
 
-    override fun getNoteIfExists(hexKey: HexKey): Note? = notes[hexKey]
+    override fun getNoteIfExists(hexKey: HexKey): Note? = notes.get(hexKey)
 
     override fun checkGetOrCreateNote(hexKey: HexKey): Note = getOrCreateNote(hexKey)
 
@@ -225,6 +267,19 @@ class DesktopLocalCache : ICacheProvider {
 
     fun markAsDeleted(eventId: HexKey) {
         deletedEvents.add(eventId)
+        trimDeletedEvents()
+    }
+
+    private fun trimDeletedEvents() {
+        if (deletedEvents.size <= MAX_DELETED) return
+        val iter = deletedEvents.iterator()
+        val toRemove = deletedEvents.size - MAX_DELETED
+        repeat(toRemove) {
+            if (iter.hasNext()) {
+                iter.next()
+                iter.remove()
+            }
+        }
     }
 
     // ----- Own event consumption -----
@@ -254,15 +309,22 @@ class DesktopLocalCache : ICacheProvider {
 
     // ----- Stats -----
 
-    fun userCount(): Int = users.size
+    fun userCount(): Int = users.size()
 
-    fun noteCount(): Int = notes.size
+    fun noteCount(): Int = notes.size()
 
     fun clear() {
         users.clear()
         notes.clear()
         addressableNotes.clear()
         deletedEvents.clear()
+    }
+
+    companion object {
+        const val MAX_USERS = 20_000
+        const val MAX_NOTES = 50_000
+        const val MAX_ADDRESSABLE = 10_000
+        const val MAX_DELETED = 10_000
     }
 }
 

@@ -53,7 +53,7 @@ fun FeedLoaded(
         contentPadding = FeedPadding,
         state = listState,
     ) {
-        itemsIndexed(items.list, key = { _, item -> item.idHex }) { _, item ->
+        itemsIndexed(items.list, key = { _, item -> item.idHex }, contentType = { _, item -> item.event?.javaClass?.simpleName ?: "Note" }) { _, item ->
             Row(Modifier.fillMaxWidth().animateItem()) {
                 NoteCompose(
                     item,

@@ -50,4 +50,8 @@
     <string name="screen_messages_description">Your encrypted direct messages will appear here.</string>
     <string name="screen_notifications_title">Notifications</string>
     <string name="screen_notifications_description">Mentions, replies, and reactions will appear here.</string>
+    <string name="screen_wallet_title">Wallet</string>
+    <string name="screen_wallet_description">Lightning wallet management and zap history will appear here.</string>
+    <string name="screen_trust_domain_title">Trust Domain</string>
+    <string name="screen_trust_domain_description">Your trust network based on NIP-85 trust assertions will appear here.</string>
 </resources>

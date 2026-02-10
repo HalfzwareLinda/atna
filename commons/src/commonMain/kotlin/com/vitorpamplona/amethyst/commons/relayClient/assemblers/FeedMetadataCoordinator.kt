@@ -45,7 +45,7 @@ import kotlinx.coroutines.CoroutineScope
  *
  * Usage:
  * ```
- * val coordinator = FeedMetadataCoordinator(client, scope, indexRelays, preloader)
+ * val coordinator = FeedMetadataCoordinator(client, scope, { relayManager.availableRelays.value }, preloader)
  * coordinator.start()
  *
  * // When feed loads new notes
@@ -57,15 +57,16 @@ import kotlinx.coroutines.CoroutineScope
 class FeedMetadataCoordinator(
     private val client: INostrClient,
     private val scope: CoroutineScope,
-    private val indexRelays: Set<NormalizedRelayUrl>,
+    private val indexRelaysProvider: () -> Set<NormalizedRelayUrl>,
     private val preloader: MetadataPreloader? = null,
     private val onEvent: ((Event, NormalizedRelayUrl) -> Unit)? = null,
 ) {
     private val priorityQueue = PrioritizedSubscriptionQueue(scope)
 
-    // Track what we've already queued to avoid duplicates
-    private val queuedPubkeys = mutableSetOf<HexKey>()
-    private val queuedNoteIds = mutableSetOf<HexKey>()
+    // Track what we've already queued to avoid duplicates.
+    // LinkedHashSet preserves insertion order for oldest-first trimming.
+    private val queuedPubkeys = LinkedHashSet<HexKey>()
+    private val queuedNoteIds = LinkedHashSet<HexKey>()
 
     /**
      * Start processing the subscription queue.
@@ -73,8 +74,8 @@ class FeedMetadataCoordinator(
      */
     fun start() {
         priorityQueue.start { filter ->
-            // Convert filter to relay-based map for all index relays
-            val filterMap = indexRelays.associateWith { listOf(filter) }
+            // Convert filter to relay-based map for all index relays (read current set)
+            val filterMap = indexRelaysProvider().associateWith { listOf(filter) }
 
             // Create listener to pass events to the callback
             val listener =
@@ -127,6 +128,7 @@ class FeedMetadataCoordinator(
         // Queue metadata first (highest priority)
         if (authors.isNotEmpty()) {
             queuedPubkeys.addAll(authors)
+            queuedPubkeys.trimOldest(MAX_QUEUED_PUBKEYS)
 
             // Use preloader if available for rate-limited loading
             if (preloader != null) {
@@ -152,6 +154,7 @@ class FeedMetadataCoordinator(
         // Queue reactions second (lower priority)
         if (noteIds.isNotEmpty()) {
             queuedNoteIds.addAll(noteIds)
+            queuedNoteIds.trimOldest(MAX_QUEUED_NOTE_IDS)
 
             val reactionsFilter =
                 Filter(
@@ -175,6 +178,7 @@ class FeedMetadataCoordinator(
         if (newPubkeys.isEmpty()) return
 
         queuedPubkeys.addAll(newPubkeys)
+        queuedPubkeys.trimOldest(MAX_QUEUED_PUBKEYS)
 
         val filter =
             Filter(
@@ -190,6 +194,14 @@ class FeedMetadataCoordinator(
     }
 
     /**
+     * Remove pubkeys from the queued set so they can be retried.
+     * Call with pubkeys whose metadata never arrived to allow re-fetching.
+     */
+    fun clearQueued(pubkeys: Collection<HexKey>) {
+        queuedPubkeys.removeAll(pubkeys.toSet())
+    }
+
+    /**
      * Load reactions for specific note IDs.
      */
     fun loadReactionsForNotes(noteIds: List<HexKey>) {
@@ -197,6 +209,7 @@ class FeedMetadataCoordinator(
         if (newNoteIds.isEmpty()) return
 
         queuedNoteIds.addAll(newNoteIds)
+        queuedNoteIds.trimOldest(MAX_QUEUED_NOTE_IDS)
 
         val filter =
             Filter(
@@ -237,5 +250,25 @@ class FeedMetadataCoordinator(
         priorityQueue.clear()
         queuedPubkeys.clear()
         queuedNoteIds.clear()
+    }
+
+    companion object {
+        private const val MAX_QUEUED_PUBKEYS = 10_000
+        private const val MAX_QUEUED_NOTE_IDS = 20_000
+    }
+}
+
+/**
+ * Trims oldest entries from a [LinkedHashSet] to keep it within [maxSize].
+ * Relies on insertion-order iteration so the oldest entries are removed first.
+ */
+private fun <T> MutableSet<T>.trimOldest(maxSize: Int) {
+    if (size <= maxSize) return
+    val iter = iterator()
+    repeat(size - maxSize) {
+        if (iter.hasNext()) {
+            iter.next()
+            iter.remove()
+        }
     }
 }

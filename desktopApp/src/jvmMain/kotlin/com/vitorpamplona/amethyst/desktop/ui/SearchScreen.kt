@@ -33,30 +33,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.vitorpamplona.amethyst.commons.search.SearchResult
@@ -79,11 +69,9 @@ fun SearchScreen(
     onNavigateToProfile: (String) -> Unit,
     onNavigateToThread: (String) -> Unit,
     onNavigateToHashtag: (String) -> Unit = {},
+    searchState: SearchBarState,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
-    val searchState = remember { SearchBarState(localCache, scope) }
-    val focusRequester = remember { FocusRequester() }
     val relayStatuses by relayManager.relayStatuses.collectAsState()
 
     // Collect state from SearchBarState
@@ -147,66 +135,9 @@ fun SearchScreen(
         }
     }
 
-    // Auto-focus the search field
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().padding(top = 16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Search",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                "${localCache.userCount()} users cached",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Search input field
-        OutlinedTextField(
-            value = searchText,
-            onValueChange = { searchState.updateSearchText(it) },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            placeholder = { Text("Search by name, npub, nevent, or #hashtag") },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-            trailingIcon = {
-                if (searchText.isNotEmpty()) {
-                    IconButton(onClick = { searchState.clearSearch() }) {
-                        Icon(
-                            Icons.Default.Clear,
-                            contentDescription = "Clear",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-        )
-
-        Spacer(Modifier.height(16.dp))
-
         // Results
         val hasResults = bech32Results.isNotEmpty() || cachedUserResults.isNotEmpty() || relaySearchResults.isNotEmpty()
 

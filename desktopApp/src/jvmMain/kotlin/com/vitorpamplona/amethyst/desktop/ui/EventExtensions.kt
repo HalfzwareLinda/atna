@@ -43,13 +43,36 @@ fun Event.toNoteDisplayData(cache: ICacheProvider? = null): NoteDisplayData {
             }
         }
     val pictureUrl = user?.profilePicture()
+    val nip05 = user?.metadataOrNull()?.nip05()
 
     return NoteDisplayData(
         id = id,
         pubKeyHex = pubKey,
         pubKeyDisplay = displayName,
         profilePictureUrl = pictureUrl,
+        nip05 = nip05,
         content = content,
         createdAt = createdAt,
+        user = user,
+        tags = tags,
     )
+}
+
+/**
+ * Finds the event ID this event is replying to.
+ * Uses NIP-10 markers (reply/root) or falls back to last e-tag.
+ */
+fun findReplyToId(event: Event): String? {
+    val eTags = event.tags.filter { it.size >= 2 && it[0] == "e" }
+    if (eTags.isEmpty()) return null
+
+    // Check for NIP-10 marked tags first
+    val replyTag = eTags.find { it.size >= 4 && it[3] == "reply" }
+    if (replyTag != null) return replyTag[1]
+
+    val rootTag = eTags.find { it.size >= 4 && it[3] == "root" }
+    if (rootTag != null && eTags.size == 1) return rootTag[1]
+
+    // Fall back to positional (last e-tag is the reply-to)
+    return eTags.lastOrNull()?.get(1)
 }

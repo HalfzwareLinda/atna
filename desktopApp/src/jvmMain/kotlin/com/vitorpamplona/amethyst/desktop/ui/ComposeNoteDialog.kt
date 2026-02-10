@@ -20,6 +20,7 @@
  */
 package com.vitorpamplona.amethyst.desktop.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,6 +48,7 @@ import androidx.compose.ui.window.Dialog
 import com.vitorpamplona.amethyst.commons.model.nip10TextNotes.PublishAction
 import com.vitorpamplona.amethyst.desktop.account.AccountState
 import com.vitorpamplona.amethyst.desktop.network.DesktopRelayConnectionManager
+import com.vitorpamplona.quartz.nip19Bech32.entities.NEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,11 +59,29 @@ fun ComposeNoteDialog(
     relayManager: DesktopRelayConnectionManager,
     account: AccountState.LoggedIn,
     replyTo: com.vitorpamplona.quartz.nip01Core.core.Event? = null,
+    quotedEvent: com.vitorpamplona.quartz.nip01Core.core.Event? = null,
 ) {
-    var content by remember { mutableStateOf("") }
+    // Pre-fill content with nostr:nevent reference when quoting
+    val initialContent =
+        remember(quotedEvent) {
+            if (quotedEvent != null) {
+                val nevent = NEvent.create(quotedEvent.id, quotedEvent.pubKey, quotedEvent.kind, null as com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl?)
+                "\nnostr:$nevent"
+            } else {
+                ""
+            }
+        }
+    var content by remember { mutableStateOf(initialContent) }
     var isPosting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    val title =
+        when {
+            replyTo != null -> "Reply"
+            quotedEvent != null -> "Quote Note"
+            else -> "New Note"
+        }
 
     Dialog(onDismissRequest = { if (!isPosting) onDismiss() }) {
         Card(
@@ -68,7 +89,7 @@ fun ComposeNoteDialog(
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
-                    if (replyTo != null) "Reply" else "New Note",
+                    title,
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -82,6 +103,33 @@ fun ComposeNoteDialog(
                     )
                 }
 
+                // Quoted note preview
+                quotedEvent?.let { quoted ->
+                    Spacer(Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                "Quoting:",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                quoted.content.take(140) + if (quoted.content.length > 140) "..." else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(
@@ -91,8 +139,8 @@ fun ComposeNoteDialog(
                         errorMessage = null
                     },
                     modifier = Modifier.fillMaxWidth().height(200.dp),
-                    label = { Text("What's on your mind?") },
-                    placeholder = { Text("Write your note...") },
+                    label = { Text(if (quotedEvent != null) "Add your commentary..." else "What's on your mind?") },
+                    placeholder = { Text(if (quotedEvent != null) "Write your thoughts on this note..." else "Write your note...") },
                     enabled = !isPosting,
                     maxLines = 10,
                 )
@@ -147,6 +195,7 @@ fun ComposeNoteDialog(
                                         account = account,
                                         relayManager = relayManager,
                                         replyTo = replyTo,
+                                        quotedEvent = quotedEvent,
                                     )
                                     onDismiss()
                                 } catch (e: Exception) {
@@ -175,6 +224,7 @@ private suspend fun publishNote(
     account: AccountState.LoggedIn,
     relayManager: DesktopRelayConnectionManager,
     replyTo: com.vitorpamplona.quartz.nip01Core.core.Event?,
+    quotedEvent: com.vitorpamplona.quartz.nip01Core.core.Event? = null,
 ) {
     withContext(Dispatchers.IO) {
         // Check read-only mode
@@ -183,7 +233,7 @@ private suspend fun publishNote(
         }
 
         // Use shared PublishAction from commons
-        val signedEvent = PublishAction.publishTextNote(content, account.signer, replyTo)
+        val signedEvent = PublishAction.publishTextNote(content, account.signer, replyTo, quotedEvent)
 
         // Broadcast to all configured relays
         relayManager.broadcastToAll(signedEvent)

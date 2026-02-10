@@ -22,6 +22,7 @@ package com.vitorpamplona.amethyst.desktop.subscriptions
 
 import com.vitorpamplona.amethyst.commons.model.Note
 import com.vitorpamplona.amethyst.commons.relayClient.assemblers.FeedMetadataCoordinator
+import com.vitorpamplona.amethyst.commons.relayClient.preload.ImagePrefetcher
 import com.vitorpamplona.amethyst.commons.relayClient.preload.MetadataPreloader
 import com.vitorpamplona.amethyst.commons.relayClient.preload.MetadataRateLimiter
 import com.vitorpamplona.amethyst.desktop.cache.DesktopLocalCache
@@ -48,7 +49,7 @@ import kotlinx.coroutines.CoroutineScope
  * val coordinator = DesktopRelaySubscriptionsCoordinator(
  *     client = relayManager.client,
  *     scope = viewModelScope,
- *     indexRelays = relayManager.availableRelays.value,
+ *     indexRelaysProvider = { relayManager.availableRelays.value },
  * )
  * coordinator.start()
  *
@@ -61,21 +62,37 @@ import kotlinx.coroutines.CoroutineScope
 class DesktopRelaySubscriptionsCoordinator(
     private val client: INostrClient,
     private val scope: CoroutineScope,
-    private val indexRelays: Set<NormalizedRelayUrl>,
+    private val indexRelaysProvider: () -> Set<NormalizedRelayUrl>,
     private val localCache: DesktopLocalCache,
 ) {
     // Rate limiter: 20 requests per second to avoid flooding relays
     private val rateLimiter = MetadataRateLimiter(maxRequestsPerSecond = 20, scope = scope)
 
+    // Avatar image prefetcher using Coil's singleton loader
+    private val imagePrefetcher =
+        object : ImagePrefetcher {
+            override fun prefetch(url: String) {
+                val context = coil3.PlatformContext.INSTANCE
+                val loader = coil3.SingletonImageLoader.get(context)
+                val request =
+                    coil3.request.ImageRequest
+                        .Builder(context)
+                        .data(url)
+                        .size(64, 64)
+                        .build()
+                loader.enqueue(request)
+            }
+        }
+
     // Preloader handles metadata + avatar prefetching
-    private val preloader = MetadataPreloader(rateLimiter, imagePrefetcher = null)
+    private val preloader = MetadataPreloader(rateLimiter, imagePrefetcher = imagePrefetcher)
 
     // Feed metadata coordinator with priority queue
     val feedMetadata =
         FeedMetadataCoordinator(
             client = client,
             scope = scope,
-            indexRelays = indexRelays,
+            indexRelaysProvider = indexRelaysProvider,
             preloader = preloader,
             onEvent = { event, _ ->
                 // Consume metadata events into local cache
@@ -90,17 +107,20 @@ class DesktopRelaySubscriptionsCoordinator(
      * Call once when app starts or user logs in.
      */
     fun start() {
-        // Start rate limiter to process queued metadata requests
-        rateLimiter.start { pubkey ->
-            // When rate limiter dequeues a pubkey, subscribe to its metadata
+        // Start rate limiter with batched processing — sends one subscription
+        // per batch (up to 20 pubkeys) instead of one subscription per pubkey
+        rateLimiter.startBatched { pubkeys ->
+            if (pubkeys.isEmpty()) return@startBatched
+            val relays = indexRelaysProvider()
+            if (relays.isEmpty()) return@startBatched
             client.openReqSubscription(
                 filters =
-                    indexRelays.associateWith {
+                    relays.associateWith {
                         listOf(
                             com.vitorpamplona.quartz.nip01Core.relay.filters.Filter(
                                 kinds = listOf(com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent.KIND),
-                                authors = listOf(pubkey),
-                                limit = 1,
+                                authors = pubkeys,
+                                limit = pubkeys.size,
                             ),
                         )
                     },
@@ -121,9 +141,20 @@ class DesktopRelaySubscriptionsCoordinator(
 
     /**
      * Load metadata for specific pubkeys.
+     * Filters out pubkeys that already have metadata in cache to avoid
+     * wasted subscriptions, and retries previously-queued pubkeys whose
+     * metadata never arrived.
      */
     fun loadMetadataForPubkeys(pubkeys: List<HexKey>) {
-        feedMetadata.loadMetadataForPubkeys(pubkeys)
+        val unresolved =
+            pubkeys.filter { pk ->
+                localCache.getUserIfExists(pk)?.metadataOrNull() == null
+            }
+        if (unresolved.isEmpty()) return
+
+        // Allow retry for pubkeys that were queued before but never resolved
+        feedMetadata.clearQueued(unresolved)
+        feedMetadata.loadMetadataForPubkeys(unresolved)
     }
 
     /**
@@ -167,6 +198,33 @@ class DesktopRelaySubscriptionsCoordinator(
         client.openReqSubscription(
             subId = newSubId(),
             filters = mapOf(providerRelay to listOf(filter)),
+        )
+    }
+
+    /**
+     * Load NIP-65 relay lists (kind 10002) for followed users who don't yet
+     * have relay lists in cache. This bootstraps the outbox model data so
+     * subsequent feed subscriptions can route filters to the correct relays.
+     */
+    fun loadRelayLists(pubkeys: List<HexKey>) {
+        val missing = pubkeys.filter { localCache.getUserIfExists(it)?.authorRelayList() == null }
+        if (missing.isEmpty()) return
+
+        val relays = indexRelaysProvider()
+        if (relays.isEmpty()) return
+
+        client.openReqSubscription(
+            subId = newSubId(),
+            filters =
+                relays.associateWith {
+                    listOf(
+                        Filter(
+                            kinds = listOf(com.vitorpamplona.quartz.nip65RelayList.AdvertisedRelayListEvent.KIND),
+                            authors = missing.sorted(),
+                            limit = missing.size,
+                        ),
+                    )
+                },
         )
     }
 

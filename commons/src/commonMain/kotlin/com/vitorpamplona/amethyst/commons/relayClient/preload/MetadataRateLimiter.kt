@@ -23,7 +23,6 @@ package com.vitorpamplona.amethyst.commons.relayClient.preload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -59,38 +58,49 @@ class MetadataRateLimiter(
 
     /**
      * Start processing the queue with rate limiting.
-     * @param onRequest Callback invoked for each pubkey to process
+     * @param onRequest Callback invoked for each pubkey to process (legacy single-pubkey)
      */
     fun start(onRequest: suspend (String) -> Unit) {
-        scope.launch {
-            val batch = mutableListOf<String>()
-            queue.consumeAsFlow().collect { pubkey ->
-                if (pubkey !in processed) {
-                    batch.add(pubkey)
-                    processed.add(pubkey)
-                }
-
-                // Process batch when we hit the limit or queue is empty
-                if (batch.size >= maxRequestsPerSecond) {
-                    processBatch(batch, onRequest)
-                    batch.clear()
-                    delay(1000) // Wait 1 second before next batch
-                }
-            }
-
-            // Process remaining
-            if (batch.isNotEmpty()) {
-                processBatch(batch, onRequest)
-            }
-        }
+        startBatched { batch -> batch.forEach { onRequest(it) } }
     }
 
-    private suspend fun processBatch(
-        batch: List<String>,
-        onRequest: suspend (String) -> Unit,
-    ) {
-        batch.forEach { pubkey ->
-            onRequest(pubkey)
+    /**
+     * Start processing the queue with rate limiting and batched callbacks.
+     * The callback receives a batch of up to [maxRequestsPerSecond] pubkeys at once,
+     * allowing a single subscription with multiple authors instead of N subscriptions.
+     *
+     * @param onBatch Callback invoked with a batch of pubkeys to process together
+     */
+    fun startBatched(onBatch: suspend (List<String>) -> Unit) {
+        scope.launch {
+            while (true) {
+                // Wait for first item
+                val first = queue.receiveCatching().getOrNull() ?: break
+                val batch = mutableListOf<String>()
+                if (first !in processed) {
+                    batch.add(first)
+                    processed.add(first)
+                }
+
+                // Collect more items for up to 200ms or until batch is full
+                val deadline = System.currentTimeMillis() + 200
+                while (batch.size < maxRequestsPerSecond) {
+                    val remaining = deadline - System.currentTimeMillis()
+                    if (remaining <= 0) break
+                    val next = queue.tryReceive().getOrNull() ?: break
+                    if (next !in processed) {
+                        batch.add(next)
+                        processed.add(next)
+                    }
+                }
+
+                if (batch.isNotEmpty()) {
+                    onBatch(batch)
+                }
+                if (batch.size >= maxRequestsPerSecond) {
+                    delay(1000) // Rate limit when processing full batches
+                }
+            }
         }
     }
 

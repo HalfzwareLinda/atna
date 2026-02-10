@@ -54,6 +54,7 @@ torAndroid = "0.4.8.21.1"
 translate = "17.0.3"
 unifiedpush = "3.0.10"
 urlDetector = "0.1.23"
+composemediaplayer = "0.8.7"
 vico-charts = "2.4.1"
 zelory = "3.0.1"
 zoomable = "2.9.0"
@@ -150,6 +151,7 @@ tarsosdsp = { group = "be.tarsos.dsp", name = "core", version.ref = "tarsosdsp" 
 tor-android = { module = "info.guardianproject:tor-android", version.ref = "torAndroid" }
 unifiedpush = { group = "com.github.UnifiedPush", name = "android-connector", version.ref = "unifiedpush" }
 url-detector = { group = "io.github.url-detector", name = "url-detector", version.ref = "urlDetector" }
+composemediaplayer = { group = "io.github.kdroidfilter", name = "composemediaplayer-jvm", version.ref = "composemediaplayer" }
 vico-charts-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico-charts" }
 vico-charts-core = { group = "com.patrykandpatrick.vico", name = "core", version.ref = "vico-charts" }
 vico-charts-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico-charts" }

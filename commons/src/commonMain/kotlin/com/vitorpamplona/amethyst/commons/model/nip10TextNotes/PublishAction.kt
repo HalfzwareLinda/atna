@@ -31,6 +31,8 @@ import com.vitorpamplona.quartz.nip01Core.tags.references.references
 import com.vitorpamplona.quartz.nip10Notes.TextNoteEvent
 import com.vitorpamplona.quartz.nip10Notes.content.findHashtags
 import com.vitorpamplona.quartz.nip10Notes.content.findURLs
+import com.vitorpamplona.quartz.nip18Reposts.quotes.QEventTag
+import com.vitorpamplona.quartz.nip18Reposts.quotes.quote
 
 /**
  * Shared action for publishing new text notes.
@@ -50,6 +52,7 @@ object PublishAction {
         content: String,
         signer: NostrSigner,
         replyTo: Event? = null,
+        quotedEvent: Event? = null,
     ): TextNoteEvent {
         if (!signer.isWriteable()) {
             throw IllegalStateException("Cannot publish: signer is not writeable")
@@ -64,6 +67,12 @@ object PublishAction {
                     etag.author = replyTo.pubKey
                     eTag(etag)
                     pTag(PTag(replyTo.pubKey, relayHint = null))
+                }
+
+                // If quoting, add q-tag (NIP-18)
+                if (quotedEvent != null) {
+                    quote(QEventTag(quotedEvent.id, null, quotedEvent.pubKey))
+                    pTag(PTag(quotedEvent.pubKey, relayHint = null))
                 }
 
                 // Extract hashtags and URLs from content

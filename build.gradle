@@ -29,6 +29,7 @@ allprojects {
         spotless {
             kotlin {
                 target 'src/**/*.kt'
+                targetExclude 'src/**/build/marmot/mdk/**/*.kt' // Auto-generated UniFFI bindings
 
                 ktlint()
                 licenseHeaderFile rootProject.file('spotless/copyright.kt'), "package|import|class|object|sealed|open|interface|abstract "

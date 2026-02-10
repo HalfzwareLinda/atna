@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.vitorpamplona.amethyst.commons.icons.Bookmark
 import com.vitorpamplona.amethyst.commons.icons.BookmarkFilled
+import com.vitorpamplona.amethyst.commons.icons.Quote
 import com.vitorpamplona.amethyst.commons.icons.Reply
 import com.vitorpamplona.amethyst.commons.icons.Repost
 import com.vitorpamplona.amethyst.commons.icons.Zap
@@ -482,6 +483,7 @@ fun NoteActionsRow(
     localCache: DesktopLocalCache,
     account: AccountState.LoggedIn,
     onReplyClick: () -> Unit,
+    onQuoteClick: () -> Unit,
     onZapFeedback: (ZapFeedback) -> Unit,
     modifier: Modifier = Modifier,
     zapCount: Int = 0,
@@ -531,6 +533,58 @@ fun NoteActionsRow(
             }
         }
 
+        // Repost button with count
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = {
+                    if (!isReposted) {
+                        scope.launch {
+                            repostNote(
+                                event = event,
+                                account = account,
+                                relayManager = relayManager,
+                            )
+                            isReposted = true
+                            localRepostCount++
+                        }
+                    }
+                },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    Repost,
+                    contentDescription = "Repost",
+                    tint =
+                        if (isReposted) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (localRepostCount > 0) {
+                Text(
+                    text = "$localRepostCount",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isReposted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        // Quote button
+        IconButton(
+            onClick = onQuoteClick,
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                Quote,
+                contentDescription = "Quote",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
         // Like button with count
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(
@@ -571,45 +625,6 @@ fun NoteActionsRow(
             }
         }
 
-        // Repost button with count
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-                onClick = {
-                    if (!isReposted) {
-                        scope.launch {
-                            repostNote(
-                                event = event,
-                                account = account,
-                                relayManager = relayManager,
-                            )
-                            isReposted = true
-                            localRepostCount++
-                        }
-                    }
-                },
-                modifier = Modifier.size(32.dp),
-            ) {
-                Icon(
-                    Repost,
-                    contentDescription = "Repost",
-                    tint =
-                        if (isReposted) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            if (localRepostCount > 0) {
-                Text(
-                    text = "$localRepostCount",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isReposted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
         // Zap button with amount (clickable to show receipts)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
@@ -644,124 +659,6 @@ fun NoteActionsRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { showZapReceiptsDialog = true },
-                )
-            }
-        }
-
-        // Bookmark button
-        var isBookmarking by remember { mutableStateOf(false) }
-        var localIsBookmarked by remember(isBookmarked) { mutableStateOf(isBookmarked) }
-        var showBookmarkDialog by remember { mutableStateOf(false) }
-
-        IconButton(
-            onClick = {
-                if (!isBookmarking) {
-                    if (localIsBookmarked) {
-                        // Remove bookmark immediately
-                        scope.launch {
-                            isBookmarking = true
-                            val newBookmarkList =
-                                removeBookmark(
-                                    event = event,
-                                    bookmarkList = bookmarkList,
-                                    account = account,
-                                    relayManager = relayManager,
-                                )
-                            if (newBookmarkList != null) {
-                                localIsBookmarked = false
-                                onBookmarkChanged(newBookmarkList)
-                            }
-                            isBookmarking = false
-                        }
-                    } else {
-                        // Show dialog to choose public/private
-                        showBookmarkDialog = true
-                    }
-                }
-            },
-            modifier = Modifier.size(32.dp),
-            enabled = !isBookmarking,
-        ) {
-            Icon(
-                if (localIsBookmarked) BookmarkFilled else Bookmark,
-                contentDescription = if (localIsBookmarked) "Remove bookmark" else "Bookmark",
-                tint =
-                    if (localIsBookmarked) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                modifier = Modifier.size(18.dp),
-            )
-        }
-
-        // Bookmark dialog
-        if (showBookmarkDialog) {
-            BookmarkDialog(
-                onDismiss = { showBookmarkDialog = false },
-                onBookmark = { isPrivate ->
-                    showBookmarkDialog = false
-                    scope.launch {
-                        isBookmarking = true
-                        val newBookmarkList =
-                            addBookmark(
-                                event = event,
-                                bookmarkList = bookmarkList,
-                                isPrivate = isPrivate,
-                                account = account,
-                                relayManager = relayManager,
-                            )
-                        if (newBookmarkList != null) {
-                            localIsBookmarked = true
-                            onBookmarkChanged(newBookmarkList)
-                        }
-                        isBookmarking = false
-                    }
-                },
-            )
-        }
-
-        // Overflow menu (three dots)
-        var showOverflowMenu by remember { mutableStateOf(false) }
-        Box {
-            IconButton(
-                onClick = { showOverflowMenu = true },
-                modifier = Modifier.size(32.dp),
-            ) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            DropdownMenu(
-                expanded = showOverflowMenu,
-                onDismissRequest = { showOverflowMenu = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Copy Note Link") },
-                    onClick = {
-                        val noteLink = "nostr:${NNote.create(event.id)}"
-                        copyToClipboard(noteLink)
-                        showOverflowMenu = false
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Copy Event Link") },
-                    onClick = {
-                        val relays = relayManager.connectedRelays.value.take(3)
-                        val neventLink = "nostr:${NEvent.create(event.id, event.pubKey, event.kind, relays)}"
-                        copyToClipboard(neventLink)
-                        showOverflowMenu = false
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Copy Event ID") },
-                    onClick = {
-                        copyToClipboard(event.id)
-                        showOverflowMenu = false
-                    },
                 )
             }
         }
@@ -1086,6 +983,140 @@ private suspend fun fetchUserLightningAddress(
             relayManager.unsubscribe(subId)
         }
     }
+
+/**
+ * Overflow menu (three dots) positioned in the top-right corner of a note.
+ * Contains bookmark and copy actions.
+ */
+@Composable
+fun NoteOverflowMenu(
+    event: Event,
+    relayManager: DesktopRelayConnectionManager,
+    account: AccountState.LoggedIn,
+    modifier: Modifier = Modifier,
+    isBookmarked: Boolean = false,
+    bookmarkList: BookmarkListEvent? = null,
+    onBookmarkChanged: (BookmarkListEvent) -> Unit = {},
+) {
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    var isBookmarking by remember { mutableStateOf(false) }
+    var localIsBookmarked by remember(isBookmarked) { mutableStateOf(isBookmarked) }
+    var showBookmarkDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = modifier) {
+        IconButton(
+            onClick = { showOverflowMenu = true },
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = showOverflowMenu,
+            onDismissRequest = { showOverflowMenu = false },
+        ) {
+            // Bookmark / Remove bookmark
+            DropdownMenuItem(
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (localIsBookmarked) BookmarkFilled else Bookmark,
+                            contentDescription = null,
+                            tint =
+                                if (localIsBookmarked) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        Text(if (localIsBookmarked) "Remove Bookmark" else "Bookmark")
+                    }
+                },
+                enabled = !isBookmarking,
+                onClick = {
+                    if (localIsBookmarked) {
+                        scope.launch {
+                            isBookmarking = true
+                            val newBookmarkList =
+                                removeBookmark(
+                                    event = event,
+                                    bookmarkList = bookmarkList,
+                                    account = account,
+                                    relayManager = relayManager,
+                                )
+                            if (newBookmarkList != null) {
+                                localIsBookmarked = false
+                                onBookmarkChanged(newBookmarkList)
+                            }
+                            isBookmarking = false
+                            showOverflowMenu = false
+                        }
+                    } else {
+                        showOverflowMenu = false
+                        showBookmarkDialog = true
+                    }
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Copy Note Link") },
+                onClick = {
+                    val noteLink = "nostr:${NNote.create(event.id)}"
+                    copyToClipboard(noteLink)
+                    showOverflowMenu = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Copy Event Link") },
+                onClick = {
+                    val relays = relayManager.connectedRelays.value.take(3)
+                    val neventLink = "nostr:${NEvent.create(event.id, event.pubKey, event.kind, relays)}"
+                    copyToClipboard(neventLink)
+                    showOverflowMenu = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Copy Event ID") },
+                onClick = {
+                    copyToClipboard(event.id)
+                    showOverflowMenu = false
+                },
+            )
+        }
+    }
+
+    // Bookmark dialog (public/private choice)
+    if (showBookmarkDialog) {
+        BookmarkDialog(
+            onDismiss = { showBookmarkDialog = false },
+            onBookmark = { isPrivate ->
+                showBookmarkDialog = false
+                scope.launch {
+                    isBookmarking = true
+                    val newBookmarkList =
+                        addBookmark(
+                            event = event,
+                            bookmarkList = bookmarkList,
+                            isPrivate = isPrivate,
+                            account = account,
+                            relayManager = relayManager,
+                        )
+                    if (newBookmarkList != null) {
+                        localIsBookmarked = true
+                        onBookmarkChanged(newBookmarkList)
+                    }
+                    isBookmarking = false
+                }
+            },
+        )
+    }
+}
 
 /**
  * Copies text to the system clipboard.

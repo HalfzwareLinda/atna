@@ -21,6 +21,7 @@
 package com.vitorpamplona.amethyst.ui.screen.loggedIn.settings
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,13 +32,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
+import com.vitorpamplona.amethyst.Amethyst
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.model.ConnectivityType
 import com.vitorpamplona.amethyst.model.FeatureSetType
@@ -74,6 +84,9 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
@@ -123,6 +136,7 @@ fun SettingsScreen(sharedPrefs: UiSettingsFlow) {
         GalleryChoice(sharedPrefs)
         PushNotificationSettingsRow(sharedPrefs)
         ShowStorageBackendInfo()
+        ClearDatabaseSection()
     }
 }
 
@@ -140,6 +154,91 @@ fun ShowStorageBackendInfo() {
         0,
     ) {
         // nostrdb backend not yet available, always SQLite
+    }
+}
+
+@Composable
+fun ClearDatabaseSection() {
+    var showDialog by remember { mutableStateOf(false) }
+    var clearLmdb by remember { mutableStateOf(true) }
+    var clearMarmot by remember { mutableStateOf(true) }
+    var isClearing by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    SettingsRow(R.string.clear_database, R.string.clear_database_description) {
+        OutlinedButton(
+            onClick = {
+                clearLmdb = true
+                clearMarmot = true
+                showDialog = true
+            },
+            enabled = !isClearing,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        ) {
+            Text(stringRes(R.string.clear_database))
+        }
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(stringRes(R.string.clear_database)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringRes(R.string.clear_database_warning),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = clearLmdb, onCheckedChange = { clearLmdb = it })
+                        Text(stringRes(R.string.clear_database_lmdb_label))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = clearMarmot, onCheckedChange = { clearMarmot = it })
+                        Text(stringRes(R.string.clear_database_marmot_label))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDialog = false
+                        isClearing = true
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                val modules = Amethyst.instance
+                                if (clearLmdb) {
+                                    modules.eventPersistenceService.wipeAndRestart()
+                                }
+                                if (clearMarmot) {
+                                    val marmotPath = context.filesDir.absolutePath + "/marmot"
+                                    modules.marmotRouter.clearAndReinitialize(marmotPath)
+                                }
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, context.getString(R.string.clear_database_success), Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, context.getString(R.string.clear_database_error, e.message ?: "Unknown error"), Toast.LENGTH_LONG).show()
+                                }
+                            } finally {
+                                isClearing = false
+                            }
+                        }
+                    },
+                    enabled = clearLmdb || clearMarmot,
+                ) {
+                    Text(stringRes(R.string.clear_database), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 

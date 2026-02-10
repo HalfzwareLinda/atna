@@ -35,14 +35,17 @@ object DesktopPreferences {
 
     private const val KEY_FEED_MODE = "feed_mode"
     private const val KEY_LAST_SCREEN = "last_screen"
+    private const val KEY_LAST_LOGGED_IN_PUBKEY = "last_logged_in_pubkey"
+    private const val KEY_UI_SCALE = "ui_scale"
+    private const val DEFAULT_UI_SCALE = 1.5f
 
     var feedMode: FeedMode
         get() {
-            val name = prefs.get(KEY_FEED_MODE, FeedMode.GLOBAL.name)
+            val name = prefs.get(KEY_FEED_MODE, FeedMode.FOLLOWING.name)
             return try {
                 FeedMode.valueOf(name)
             } catch (e: Exception) {
-                FeedMode.GLOBAL
+                FeedMode.FOLLOWING
             }
         }
         set(value) {
@@ -53,5 +56,30 @@ object DesktopPreferences {
         get() = prefs.get(KEY_LAST_SCREEN, "Feed")
         set(value) {
             prefs.put(KEY_LAST_SCREEN, value)
+        }
+
+    /** Hex pubkey of the last logged-in account. Used to detect account switches. */
+    var lastLoggedInPubkey: String?
+        get() = prefs.get(KEY_LAST_LOGGED_IN_PUBKEY, null)
+        set(value) {
+            if (value != null) {
+                prefs.put(KEY_LAST_LOGGED_IN_PUBKEY, value)
+            } else {
+                prefs.remove(KEY_LAST_LOGGED_IN_PUBKEY)
+            }
+        }
+
+    /** UI scale factor (0.75 – 2.5). Affects density and font scale. */
+    var uiScale: Float
+        get() {
+            val raw = prefs.get(KEY_UI_SCALE, DEFAULT_UI_SCALE.toString())
+            return try {
+                raw.toFloat().coerceIn(0.75f, 2.5f)
+            } catch (e: Exception) {
+                DEFAULT_UI_SCALE
+            }
+        }
+        set(value) {
+            prefs.put(KEY_UI_SCALE, value.coerceIn(0.75f, 2.5f).toString())
         }
 }

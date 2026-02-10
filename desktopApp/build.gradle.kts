@@ -44,10 +44,14 @@ dependencies {
 
     // Networking
     implementation(libs.okhttp)
+    implementation(libs.okhttpCoroutines)
 
     // Image caching (Coil 3 - disk + memory cache for profile pictures)
     implementation(libs.coil.compose)
     implementation(libs.coil.okhttp)
+
+    // Video player (ComposeMediaPlayer - GStreamer-based inline playback)
+    implementation(libs.composemediaplayer)
 
     // JSON
     implementation(libs.jackson.module.kotlin)

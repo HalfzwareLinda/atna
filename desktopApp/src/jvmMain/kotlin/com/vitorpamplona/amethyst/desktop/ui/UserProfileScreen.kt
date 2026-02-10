@@ -37,6 +37,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.Button
@@ -75,6 +77,7 @@ import com.vitorpamplona.amethyst.desktop.subscriptions.createUserPostsSubscript
 import com.vitorpamplona.amethyst.desktop.subscriptions.rememberSubscription
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip01Core.core.hexToByteArrayOrNull
+import com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent
 import com.vitorpamplona.quartz.nip02FollowList.ContactListEvent
 import com.vitorpamplona.quartz.nip19Bech32.toNpub
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +86,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.util.Collections
 
 /**
  * User profile screen showing user info, follow button, and their posts.
@@ -98,7 +102,9 @@ fun UserProfileScreen(
     onBack: () -> Unit,
     onCompose: () -> Unit = {},
     onNavigateToProfile: (String) -> Unit = {},
+    onMarmotMessage: (String) -> Unit = {},
     onZapFeedback: (ZapFeedback) -> Unit = {},
+    onQuote: (com.vitorpamplona.quartz.nip01Core.core.Event) -> Unit = {},
 ) {
     val connectedRelays by relayManager.connectedRelays.collectAsState()
     val relayStatuses by relayManager.relayStatuses.collectAsState()
@@ -107,8 +113,10 @@ fun UserProfileScreen(
     var displayName by remember { mutableStateOf<String?>(null) }
     var about by remember { mutableStateOf<String?>(null) }
     var picture by remember { mutableStateOf<String?>(null) }
+    var latestMetadataEvent by remember { mutableStateOf<MetadataEvent?>(null) }
     var followersCount by remember { mutableStateOf(0) }
     var followingCount by remember { mutableStateOf(0) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
@@ -147,22 +155,25 @@ fun UserProfileScreen(
                 pubKeyHex = account.pubKeyHex,
                 onEvent = { event, _, _, _ ->
                     if (event is ContactListEvent) {
-                        // Store the most recent contact list (by createdAt timestamp)
-                        if (myContactList == null || event.createdAt > myContactList!!.createdAt) {
-                            myContactList = event
-                        }
-
                         followState.updateContactList(event, pubKeyHex)
-                        contactListLoaded = true
+                        scope.launch(Dispatchers.Main) {
+                            // Store the most recent contact list (by createdAt timestamp)
+                            if (myContactList == null || event.createdAt > myContactList!!.createdAt) {
+                                myContactList = event
+                            }
+                            contactListLoaded = true
+                        }
                     }
                 },
                 onEose = { _, _ ->
-                    eoseReceivedCount++
+                    scope.launch(Dispatchers.Main) {
+                        eoseReceivedCount++
 
-                    // Wait for EOSE from at least 2 relays or all relays before enabling button
-                    val minEoseCount = minOf(2, configuredRelays.size)
-                    if (eoseReceivedCount >= minEoseCount && !contactListLoaded) {
-                        contactListLoaded = true
+                        // Wait for EOSE from at least 2 relays or all relays before enabling button
+                        val minEoseCount = minOf(2, configuredRelays.size)
+                        if (eoseReceivedCount >= minEoseCount && !contactListLoaded) {
+                            contactListLoaded = true
+                        }
                     }
                 },
             )
@@ -186,13 +197,19 @@ fun UserProfileScreen(
                 relays = configuredRelays,
                 pubKeyHex = pubKeyHex,
                 onEvent = { event, _, _, _ ->
-                    try {
-                        val content = event.content
-                        displayName = extractJsonField(content, "display_name") ?: extractJsonField(content, "name")
-                        about = extractJsonField(content, "about")
-                        picture = extractJsonField(content, "picture")
-                    } catch (e: Exception) {
-                        // Ignore parse errors
+                    if (event is MetadataEvent) {
+                        localCache.consumeMetadata(event)
+                        try {
+                            val metadata = event.contactMetaData()
+                            scope.launch(Dispatchers.Main) {
+                                latestMetadataEvent = event
+                                displayName = metadata?.displayName ?: metadata?.name
+                                about = metadata?.about
+                                picture = metadata?.picture
+                            }
+                        } catch (e: Exception) {
+                            // Ignore parse errors
+                        }
                     }
                 },
             )
@@ -210,8 +227,8 @@ fun UserProfileScreen(
                 pubKeyHex = pubKeyHex,
                 onEvent = { event, _, _, _ ->
                     if (event is ContactListEvent) {
-                        // Count the number of people this user follows
-                        followingCount = event.verifiedFollowKeySet().size
+                        val count = event.verifiedFollowKeySet().size
+                        scope.launch(Dispatchers.Main) { followingCount = count }
                     }
                 },
                 onEose = { _, _ -> },
@@ -222,7 +239,7 @@ fun UserProfileScreen(
     }
 
     // Track unique followers (authors of contact lists that tag this pubkey)
-    val followerAuthors = remember(pubKeyHex) { mutableSetOf<String>() }
+    val followerAuthors = remember(pubKeyHex) { Collections.synchronizedSet(mutableSetOf<String>()) }
 
     // Subscribe to followers (contact lists that tag this user)
     rememberSubscription(relayStatuses, pubKeyHex, retryTrigger, relayManager = relayManager) {
@@ -246,7 +263,7 @@ fun UserProfileScreen(
                 onEvent = { event, _, _, _ ->
                     // Count unique authors who follow this user
                     if (followerAuthors.add(event.pubKey)) {
-                        followersCount = followerAuthors.size
+                        scope.launch(Dispatchers.Main) { followersCount = followerAuthors.size }
                     }
                 },
                 onEose = { _, _ -> },
@@ -269,7 +286,7 @@ fun UserProfileScreen(
                     eventState.addItem(event)
                 },
                 onEose = { _, _ ->
-                    postsLoading = false
+                    scope.launch(Dispatchers.Main) { postsLoading = false }
                 },
             )
         } else {
@@ -297,67 +314,93 @@ fun UserProfileScreen(
                 )
             }
 
+            if (account != null && !account.isReadOnly && pubKeyHex == account.pubKeyHex) {
+                OutlinedButton(onClick = { showEditProfileDialog = true }) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit Profile",
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Edit Profile")
+                }
+            }
+
             if (account != null && !account.isReadOnly && pubKeyHex != account.pubKeyHex) {
                 Column(horizontalAlignment = Alignment.End) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                val currentStatus = followState.currentStatusOrNull()
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Marmot message button
+                        OutlinedButton(
+                            onClick = { onMarmotMessage(pubKeyHex) },
+                        ) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = "Marmot Message",
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
 
-                                followState.setFollowLoading()
-                                try {
-                                    val updatedEvent =
-                                        if (currentStatus?.isFollowing == true) {
-                                            unfollowUser(pubKeyHex, account, relayManager, myContactList)
-                                        } else {
-                                            followUser(pubKeyHex, account, relayManager, myContactList)
-                                        }
+                        // Follow button
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    val currentStatus = followState.currentStatusOrNull()
 
-                                    // Update both stored contact list and followState
-                                    myContactList = updatedEvent
-                                    followState.setFollowSuccess(updatedEvent, pubKeyHex)
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    followState.setFollowError(e.message ?: "Failed to update follow status", e)
+                                    followState.setFollowLoading()
+                                    try {
+                                        val updatedEvent =
+                                            if (currentStatus?.isFollowing == true) {
+                                                unfollowUser(pubKeyHex, account, relayManager, myContactList)
+                                            } else {
+                                                followUser(pubKeyHex, account, relayManager, myContactList)
+                                            }
+
+                                        // Update both stored contact list and followState
+                                        myContactList = updatedEvent
+                                        followState.setFollowSuccess(updatedEvent, pubKeyHex)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        followState.setFollowError(e.message ?: "Failed to update follow status", e)
+                                    }
+                                }
+                            },
+                            enabled = contactListLoaded && followState.state.value !is com.vitorpamplona.amethyst.commons.state.LoadingState.Loading,
+                        ) {
+                            val state = followState.state.collectAsState().value
+                            val isFollowing = (state as? com.vitorpamplona.amethyst.commons.state.LoadingState.Success)?.data?.isFollowing ?: false
+                            val isLoading = state is com.vitorpamplona.amethyst.commons.state.LoadingState.Loading
+
+                            when {
+                                !contactListLoaded -> {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Loading...")
+                                }
+                                isLoading -> {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (isFollowing) "Unfollowing..." else "Following...")
+                                }
+                                else -> {
+                                    Icon(
+                                        if (isFollowing) Icons.Default.PersonRemove else Icons.Default.PersonAdd,
+                                        contentDescription = if (isFollowing) "Unfollow" else "Follow",
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (isFollowing) "Unfollow" else "Follow")
                                 }
                             }
-                        },
-                        enabled = contactListLoaded && followState.state.value !is com.vitorpamplona.amethyst.commons.state.LoadingState.Loading,
-                    ) {
-                        val state = followState.state.collectAsState().value
-                        val isFollowing = (state as? com.vitorpamplona.amethyst.commons.state.LoadingState.Success)?.data?.isFollowing ?: false
-                        val isLoading = state is com.vitorpamplona.amethyst.commons.state.LoadingState.Loading
-
-                        when {
-                            !contactListLoaded -> {
-                                androidx.compose.material3.CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text("Loading...")
-                            }
-                            isLoading -> {
-                                androidx.compose.material3.CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(if (isFollowing) "Unfollowing..." else "Following...")
-                            }
-                            else -> {
-                                Icon(
-                                    if (isFollowing) Icons.Default.PersonRemove else Icons.Default.PersonAdd,
-                                    contentDescription = if (isFollowing) "Unfollow" else "Follow",
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(if (isFollowing) "Unfollow" else "Follow")
-                            }
                         }
-                    }
+                    } // close Row(Marmot + Follow)
 
                     val errorMessage =
                         followState.state
@@ -566,6 +609,7 @@ fun UserProfileScreen(
                                 account = account,
                                 nwcConnection = nwcConnection,
                                 onReply = onCompose,
+                                onQuote = { onQuote(event) },
                                 onZapFeedback = onZapFeedback,
                                 onNavigateToProfile = onNavigateToProfile,
                             )
@@ -575,17 +619,16 @@ fun UserProfileScreen(
             }
         }
     }
-}
 
-/**
- * Simple JSON field extractor (not production-ready, just for demo).
- */
-private fun extractJsonField(
-    json: String,
-    field: String,
-): String? {
-    val regex = """"$field"\s*:\s*"([^"]*)"""".toRegex()
-    return regex.find(json)?.groupValues?.get(1)
+    // Edit profile dialog
+    if (showEditProfileDialog && account != null) {
+        EditProfileDialog(
+            onDismiss = { showEditProfileDialog = false },
+            account = account,
+            relayManager = relayManager,
+            currentMetadataEvent = latestMetadataEvent,
+        )
+    }
 }
 
 /**
