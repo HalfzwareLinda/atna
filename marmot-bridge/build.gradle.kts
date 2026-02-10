@@ -36,12 +36,19 @@ kotlin {
         }
 
         // mdk-kotlin is Android-only (AAR with native .so libraries).
-        // Desktop JVM uses StubMarmotManager instead.
         androidMain {
             dependencies {
                 implementation(libs.mdk.kotlin.get().toString()) {
                     exclude(group = "net.java.dev.jna", module = "jna")
                 }
+            }
+        }
+
+        // Desktop JVM uses JVM-compatible UniFFI bindings + desktop native library.
+        // JNA JAR (not AAR) is needed for native library loading on desktop.
+        jvmMain {
+            dependencies {
+                implementation(libs.jna)
             }
         }
 

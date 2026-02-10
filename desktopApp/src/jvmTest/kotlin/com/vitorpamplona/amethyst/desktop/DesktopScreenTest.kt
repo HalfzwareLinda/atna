@@ -20,6 +20,7 @@
  */
 package com.vitorpamplona.amethyst.desktop
 
+import com.vitorpamplona.amethyst.desktop.subscriptions.FeedTab
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -28,7 +29,7 @@ import kotlin.test.assertNotEquals
 class DesktopScreenTest {
     @Test
     fun allSingletonScreensAreSingletons() {
-        assertIs<DesktopScreen>(DesktopScreen.Feed)
+        assertIs<DesktopScreen>(DesktopScreen.Feed())
         assertIs<DesktopScreen>(DesktopScreen.Reads)
         assertIs<DesktopScreen>(DesktopScreen.Search)
         assertIs<DesktopScreen>(DesktopScreen.Bookmarks)
@@ -37,7 +38,6 @@ class DesktopScreenTest {
         assertIs<DesktopScreen>(DesktopScreen.MyProfile)
         assertIs<DesktopScreen>(DesktopScreen.Settings)
         assertIs<DesktopScreen>(DesktopScreen.BugReport)
-        assertIs<DesktopScreen>(DesktopScreen.MarmotGroups)
     }
 
     @Test
@@ -63,9 +63,24 @@ class DesktopScreenTest {
     }
 
     @Test
-    fun marmotGroupsScreenExists() {
-        val screen: DesktopScreen = DesktopScreen.MarmotGroups
+    fun marmotNewChatScreenExists() {
+        val screen: DesktopScreen = DesktopScreen.MarmotNewChat()
         assertIs<DesktopScreen>(screen)
-        assertEquals(DesktopScreen.MarmotGroups, screen)
+    }
+
+    @Test
+    fun feedScreenDefaultsToNotesTab() {
+        val feed = DesktopScreen.Feed()
+        assertEquals(FeedTab.NOTES, feed.tab)
+    }
+
+    @Test
+    fun feedScreenTabEquality() {
+        val feedNotes = DesktopScreen.Feed(FeedTab.NOTES)
+        val feedMedia = DesktopScreen.Feed(FeedTab.MEDIA)
+        val feedNotes2 = DesktopScreen.Feed(FeedTab.NOTES)
+
+        assertEquals(feedNotes, feedNotes2)
+        assertNotEquals(feedNotes, feedMedia)
     }
 }

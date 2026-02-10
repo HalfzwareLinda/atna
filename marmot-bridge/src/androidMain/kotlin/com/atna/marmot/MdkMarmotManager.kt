@@ -36,7 +36,10 @@ class MdkMarmotManager : MarmotManager {
     override fun initialize(dbPath: String) {
         if (mdk != null) return
         try {
-            java.io.File(dbPath).mkdirs()
+            java.io
+                .File(dbPath)
+                .parentFile
+                ?.mkdirs()
             mdk = newMdk(dbPath)
         } catch (e: MdkUniffiException) {
             throw IllegalStateException("Failed to initialize Marmot: ${e.message}", e)
@@ -46,6 +49,16 @@ class MdkMarmotManager : MarmotManager {
     override fun close() {
         mdk?.close()
         mdk = null
+    }
+
+    override fun clearData(dbPath: String) {
+        close()
+        java.io.File(dbPath).deleteRecursively()
+        java.io
+            .File(dbPath)
+            .parentFile
+            ?.mkdirs()
+        initialize(dbPath)
     }
 
     override suspend fun createKeyPackage(
@@ -137,6 +150,10 @@ class MdkMarmotManager : MarmotManager {
                     MarmotProcessResult.Commit(result.mlsGroupId)
                 is ProcessMessageResult.Unprocessable ->
                     MarmotProcessResult.Unprocessable(result.mlsGroupId)
+                else ->
+                    // Catch-all for newer variants (PendingProposal, IgnoredProposal,
+                    // PreviouslyFailed) that may be added in future mdk-kotlin versions
+                    MarmotProcessResult.Unprocessable("")
             }
         }
 

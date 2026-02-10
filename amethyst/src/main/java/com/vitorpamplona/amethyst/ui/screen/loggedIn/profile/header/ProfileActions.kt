@@ -38,6 +38,7 @@ fun ProfileActions(
     accountViewModel: AccountViewModel,
     nav: INav,
 ) {
+    MarmotMessageButton(baseUser, nav)
     MessageButton(baseUser, accountViewModel, nav)
 
     val isMe by

@@ -90,6 +90,10 @@ sealed class Route {
         val groupName: String = "",
     ) : Route()
 
+    @Serializable data class MarmotNewChat(
+        val prefillPubkey: String? = null,
+    ) : Route()
+
     @Serializable object Lists : Route()
 
     @Serializable data class MyPeopleListView(
@@ -370,6 +374,7 @@ fun getRouteWithArguments(navController: NavHostController): Route? {
         dest.hasRoute<Route.BugReport>() -> entry.toRoute<Route.BugReport>()
         dest.hasRoute<Route.MarmotGroups>() -> entry.toRoute<Route.MarmotGroups>()
         dest.hasRoute<Route.MarmotConversation>() -> entry.toRoute<Route.MarmotConversation>()
+        dest.hasRoute<Route.MarmotNewChat>() -> entry.toRoute<Route.MarmotNewChat>()
         dest.hasRoute<Route.ManualZapSplitPayment>() -> entry.toRoute<Route.ManualZapSplitPayment>()
 
         else -> {

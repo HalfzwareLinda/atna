@@ -45,6 +45,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,13 +82,15 @@ fun MarmotConversationScreen(
 ) {
     val router = Amethyst.instance.marmotRouter
     val scope = rememberCoroutineScope()
+    val currentUserPubkey = router.currentUserPubkey
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(groupId) {
         router.refreshMessagesForGroup(groupId)
     }
 
-    val allMessages by router.messagesPerGroup.collectAsState()
-    val messages = allMessages[groupId] ?: emptyList()
+    val messagesFlow = remember(groupId) { router.messagesForGroup(groupId) }
+    val messages by messagesFlow.collectAsState()
     val listState = rememberLazyListState()
 
     var messageText by remember { mutableStateOf("") }
@@ -98,7 +102,15 @@ fun MarmotConversationScreen(
         }
     }
 
+    // Collect error messages from the router and show in Snackbar
+    LaunchedEffect(Unit) {
+        router.errors.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopBarWithBackButton(
                 caption = groupName.ifEmpty { stringResource(R.string.marmot_conversation) },
@@ -145,10 +157,10 @@ fun MarmotConversationScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         items(
-                            messages.sortedByDescending { it.timestamp },
+                            messages,
                             key = { it.id },
                         ) { message ->
-                            MessageBubble(message)
+                            MessageBubble(message, currentUserPubkey)
                         }
                     }
                 }
@@ -164,12 +176,12 @@ fun MarmotConversationScreen(
                         val text = messageText.trim()
                         messageText = ""
                         sending = true
-                        scope.launch {
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             try {
                                 val eventJson =
                                     router.sendMessage(
                                         groupId = groupId,
-                                        senderKey = "",
+                                        senderKey = currentUserPubkey,
                                         content = text,
                                     )
                                 // Parse and broadcast the encrypted event
@@ -186,12 +198,12 @@ fun MarmotConversationScreen(
                                             Amethyst.instance.client.send(event, relays)
                                         }
                                     } catch (e: Exception) {
-                                        System.err.println("MarmotConversation: failed to broadcast: ${e.message}")
+                                        snackbarHostState.showSnackbar("Failed to broadcast: ${e.message}")
                                     }
                                 }
                                 router.refreshMessagesForGroup(groupId)
                             } catch (e: Exception) {
-                                System.err.println("MarmotConversation: send failed: ${e.message}")
+                                snackbarHostState.showSnackbar("Failed to send message: ${e.message}")
                             } finally {
                                 sending = false
                             }
@@ -234,11 +246,11 @@ private fun EmptyConversationPlaceholder(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MessageBubble(message: MarmotMessage) {
-    // For now treat all messages as "them" since we can't easily determine
-    // the current user key at this layer. A future enhancement would pass
-    // the user pubkey to distinguish own vs. other messages.
-    val isOwnMessage = false
+private fun MessageBubble(
+    message: MarmotMessage,
+    currentUserPubkey: String,
+) {
+    val isOwnMessage = message.senderKey == currentUserPubkey
     val bubbleColor =
         if (isOwnMessage) {
             MaterialTheme.colorScheme.primaryContainer

@@ -68,6 +68,7 @@ import com.vitorpamplona.amethyst.ui.screen.loggedIn.bookmarkgroups.membershipMa
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.bugreport.BugReportScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.marmotDM.MarmotConversationScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.marmotDM.MarmotGroupListScreen
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.marmotDM.MarmotNewChatScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.privateDM.ChatroomByAuthorScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.privateDM.ChatroomScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.chats.privateDM.send.NewGroupDMScreen
@@ -128,6 +129,11 @@ fun AppNavigation(
 ) {
     val nav = rememberNav()
 
+    // Wire the current user's pubkey into MarmotEventRouter for own-message detection and welcome processing
+    LaunchedEffect(accountViewModel.account.pubKey) {
+        Amethyst.instance.marmotRouter.setCurrentUserPubkey(accountViewModel.account.pubKey)
+    }
+
     AccountSwitcherAndLeftDrawerLayout(accountViewModel, accountStateViewModel, nav) {
         NavHost(
             navController = nav.controller,
@@ -171,6 +177,7 @@ fun AppNavigation(
             composableFromEnd<Route.BugReport> { BugReportScreen(nav) }
             composableFromEnd<Route.MarmotGroups> { MarmotGroupListScreen(nav) }
             composableFromEndArgs<Route.MarmotConversation> { MarmotConversationScreen(it.groupId, it.groupName, nav) }
+            composableFromEndArgs<Route.MarmotNewChat> { MarmotNewChatScreen(it.prefillPubkey, accountViewModel, nav) }
             composableFromBottomArgs<Route.Nip47NWCSetup> { NIP47SetupScreen(accountViewModel, nav, it.nip47) }
             composableFromEndArgs<Route.EditRelays> { AllRelayListScreen(accountViewModel, nav) }
             composableFromEndArgs<Route.EditMediaServers> { AllMediaServersScreen(accountViewModel, nav) }

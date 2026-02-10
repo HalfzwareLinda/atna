@@ -161,8 +161,13 @@ interface MarmotManager {
     /**
      * Process a welcome event and return the invite details.
      *
-     * @param eventJson The welcome event JSON
-     * @param ourPubkey Our public key (hex)
+     * Note: The underlying mdk API differs between platforms.
+     * - Android (mdk-kotlin): processWelcome(eventJson, ourPubkey)
+     * - Desktop (mdk-uniffi): processWelcome(wrapperEventId, rumorEventJson)
+     * Each platform implementation maps these parameters appropriately.
+     *
+     * @param eventJson The welcome event JSON (rumor event JSON)
+     * @param ourPubkey Our public key (hex). On Desktop, also serves as the wrapper event ID.
      * @return The pending invite
      */
     suspend fun processWelcome(
@@ -183,6 +188,14 @@ interface MarmotManager {
      * @param welcomeId The welcome ID
      */
     suspend fun declineInvite(welcomeId: String)
+
+    /**
+     * Close the database, delete all files, and reinitialize.
+     * Used by the "Clear local database" settings option.
+     *
+     * @param dbPath Path to the database directory
+     */
+    fun clearData(dbPath: String)
 }
 
 /**

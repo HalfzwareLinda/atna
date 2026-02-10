@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
@@ -42,11 +43,14 @@ import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,18 +79,39 @@ import kotlinx.coroutines.launch
 fun MarmotGroupListScreen(nav: INav) {
     val router = Amethyst.instance.marmotRouter
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    LaunchedEffect(router.isInitialized) {
+        if (router.isInitialized) {
+            router.refreshGroups()
+            router.refreshInvites()
+        }
+    }
+
+    // Collect error messages from the router and show in Snackbar
     LaunchedEffect(Unit) {
-        router.refreshGroups()
-        router.refreshInvites()
+        router.errors.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopBarWithBackButton(
                 caption = stringResource(R.string.marmot_groups),
                 popBack = { nav.popBack() },
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { nav.nav(Route.MarmotNewChat()) },
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.marmot_new_chat),
+                )
+            }
         },
     ) { padding ->
         val groups by router.groups.collectAsState()
@@ -125,23 +150,35 @@ fun MarmotGroupListScreen(nav: INav) {
                             )
                         }
                         items(invites, key = { it.welcomeId }) { invite ->
+                            var processing by remember { mutableStateOf(false) }
                             InviteItem(
                                 invite = invite,
+                                processing = processing,
                                 onAccept = {
+                                    processing = true
                                     scope.launch {
                                         try {
                                             router.acceptInvite(invite.welcomeId)
                                         } catch (e: Exception) {
-                                            System.err.println("Accept invite failed: ${e.message}")
+                                            snackbarHostState.showSnackbar(
+                                                "Failed to accept invite: ${e.message}",
+                                            )
+                                        } finally {
+                                            processing = false
                                         }
                                     }
                                 },
                                 onDecline = {
+                                    processing = true
                                     scope.launch {
                                         try {
                                             router.declineInvite(invite.welcomeId)
                                         } catch (e: Exception) {
-                                            System.err.println("Decline invite failed: ${e.message}")
+                                            snackbarHostState.showSnackbar(
+                                                "Failed to decline invite: ${e.message}",
+                                            )
+                                        } finally {
+                                            processing = false
                                         }
                                     }
                                 },
@@ -275,11 +312,10 @@ private fun GroupItem(
 @Composable
 private fun InviteItem(
     invite: MarmotInvite,
+    processing: Boolean,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
 ) {
-    var processing by remember { mutableStateOf(false) }
-
     Card(
         modifier =
             Modifier
@@ -316,12 +352,7 @@ private fun InviteItem(
                 )
             } else {
                 // Accept button
-                IconButton(
-                    onClick = {
-                        processing = true
-                        onAccept()
-                    },
-                ) {
+                IconButton(onClick = onAccept) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = stringResource(R.string.marmot_accept),
@@ -330,12 +361,7 @@ private fun InviteItem(
                 }
                 Spacer(Modifier.width(4.dp))
                 // Decline button
-                IconButton(
-                    onClick = {
-                        processing = true
-                        onDecline()
-                    },
-                ) {
+                IconButton(onClick = onDecline) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.marmot_decline),

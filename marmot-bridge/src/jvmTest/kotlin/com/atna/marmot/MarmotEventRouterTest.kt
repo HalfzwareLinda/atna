@@ -33,7 +33,7 @@ class MarmotEventRouterTest {
 
     @Test
     fun testRouterStartsWithEmptyState() {
-        val manager = StubMarmotManager()
+        val manager = TestMarmotManager()
         val router = MarmotEventRouter(manager, createScope())
         assertTrue(router.groups.value.isEmpty())
         assertTrue(router.invites.value.isEmpty())
@@ -43,17 +43,17 @@ class MarmotEventRouterTest {
     @Test
     fun testRefreshGroupsWithStubReturnsEmpty() =
         runTest {
-            val manager = StubMarmotManager()
+            val manager = TestMarmotManager()
             val router = MarmotEventRouter(manager, createScope())
             router.refreshGroups()
-            // StubMarmotManager returns empty lists
+            // TestMarmotManager returns empty lists
             assertTrue(router.groups.value.isEmpty())
         }
 
     @Test
     fun testRefreshInvitesWithStubReturnsEmpty() =
         runTest {
-            val manager = StubMarmotManager()
+            val manager = TestMarmotManager()
             val router = MarmotEventRouter(manager, createScope())
             router.refreshInvites()
             assertTrue(router.invites.value.isEmpty())
@@ -61,9 +61,9 @@ class MarmotEventRouterTest {
 
     @Test
     fun testOnMarmotEventIgnoredWhenNotInitialized() {
-        val manager = StubMarmotManager()
+        val manager = TestMarmotManager()
         val router = MarmotEventRouter(manager, createScope())
-        // StubMarmotManager.isInitialized is always false
+        // TestMarmotManager.isInitialized is always false
         val event =
             com.vitorpamplona.quartz.marmotMls.MarmotGroupEvent(
                 id = "a".repeat(64),
@@ -78,8 +78,8 @@ class MarmotEventRouterTest {
     }
 
     @Test
-    fun testStubMarmotManagerIsNotInitialized() {
-        val manager = StubMarmotManager()
+    fun testTestMarmotManagerIsNotInitialized() {
+        val manager = TestMarmotManager()
         assertEquals(false, manager.isInitialized)
         // initialize logs but doesn't change state
         manager.initialize("/tmp/test")
@@ -87,9 +87,9 @@ class MarmotEventRouterTest {
     }
 
     @Test
-    fun testStubMarmotManagerGetGroupsReturnsEmpty() =
+    fun testTestMarmotManagerGetGroupsReturnsEmpty() =
         runTest {
-            val manager = StubMarmotManager()
+            val manager = TestMarmotManager()
             assertTrue(manager.getGroups().isEmpty())
             assertTrue(manager.getMessages("any").isEmpty())
             assertTrue(manager.getPendingInvites().isEmpty())

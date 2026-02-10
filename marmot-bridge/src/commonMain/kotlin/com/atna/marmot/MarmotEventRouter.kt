@@ -21,13 +21,23 @@
 package com.atna.marmot
 
 import com.vitorpamplona.quartz.marmotMls.MarmotGroupEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageRelayListEvent
 import com.vitorpamplona.quartz.marmotMls.MarmotWelcomeEvent
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.BUFFERED
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Routes incoming Marmot Nostr events to the MarmotManager for MLS processing,
@@ -36,9 +46,35 @@ import kotlinx.coroutines.launch
 class MarmotEventRouter(
     private val manager: MarmotManager,
     private val scope: CoroutineScope,
-    private val ourPubkey: String = "",
 ) {
     val isInitialized: Boolean get() = manager.isInitialized
+
+    /** If initialization failed, contains the error message. Null if init succeeded or hasn't been attempted. */
+    @Volatile
+    var initError: String? = null
+        private set
+
+    /** Record that initialization failed with the given error message. */
+    fun setInitFailed(error: String) {
+        initError = error
+    }
+
+    /** Clear any previous initialization error (e.g. before re-initializing after re-login). */
+    fun clearInitError() {
+        initError = null
+    }
+
+    /** The current user's public key (hex). Set after login via [setCurrentUserPubkey]. */
+    @Volatile
+    private var ourPubkey: String = ""
+
+    /** The current user's public key (hex). Used by UI to distinguish own messages. */
+    val currentUserPubkey: String get() = ourPubkey
+
+    /** Sets the current user's public key. Must be called after login for welcome events and own-message detection to work. */
+    fun setCurrentUserPubkey(pubkey: String) {
+        ourPubkey = pubkey
+    }
 
     private val _groups = MutableStateFlow<List<MarmotGroup>>(emptyList())
     val groups: StateFlow<List<MarmotGroup>> = _groups.asStateFlow()
@@ -49,21 +85,80 @@ class MarmotEventRouter(
     private val _messagesPerGroup = MutableStateFlow<Map<String, List<MarmotMessage>>>(emptyMap())
     val messagesPerGroup: StateFlow<Map<String, List<MarmotMessage>>> = _messagesPerGroup.asStateFlow()
 
-    fun onMarmotEvent(event: Event) {
-        if (!manager.isInitialized) return
+    /** Emits user-facing error messages. Uses Channel so each error is delivered to exactly one collector (no duplicates during nav transitions). */
+    private val _errors = Channel<String>(BUFFERED)
+    val errors: Flow<String> = _errors.receiveAsFlow()
 
+    /** Cached per-group message flows to avoid creating new collectors on each call. */
+    private val groupMessageFlows = HashMap<String, StateFlow<List<MarmotMessage>>>()
+    private val groupFlowsMutex = Mutex()
+
+    /** Returns a cached flow of messages for a specific group, avoiding full-map recompositions. */
+    fun messagesForGroup(groupId: String): StateFlow<List<MarmotMessage>> {
+        // Fast path: already cached (common case, no lock needed)
+        groupMessageFlows[groupId]?.let { return it }
+        // Slow path: create new flow under lock. Benign race: at worst a duplicate flow is created.
+        val flow =
+            _messagesPerGroup
+                .map { it[groupId] ?: emptyList() }
+                .stateIn(scope, SharingStarted.Eagerly, _messagesPerGroup.value[groupId] ?: emptyList())
+        // Use putIfAbsent logic: if another thread inserted while we created, use theirs
+        return groupMessageFlows.getOrPut(groupId) { flow }
+    }
+
+    /** Tracks Marmot key package relay lists per user pubkey. */
+    private val userMarmotRelaysMap = HashMap<String, List<String>>()
+    private val relaysMutex = Mutex()
+    private val _userMarmotRelays = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val userMarmotRelays: StateFlow<Map<String, List<String>>> = _userMarmotRelays.asStateFlow()
+
+    /**
+     * Clears all Marmot data and reinitializes the manager.
+     * Used by the "Clear local database" settings option.
+     */
+    fun clearAndReinitialize(dbPath: String) {
+        manager.clearData(dbPath)
+        _groups.value = emptyList()
+        _invites.value = emptyList()
+        _messagesPerGroup.value = emptyMap()
+        groupMessageFlows.clear()
+        refreshGroups()
+        refreshInvites()
+    }
+
+    fun onMarmotEvent(event: Event) {
         scope.launch {
             try {
                 when (event) {
-                    is MarmotGroupEvent -> handleGroupEvent(event)
-                    is MarmotWelcomeEvent -> handleWelcomeEvent(event)
+                    is MarmotKeyPackageRelayListEvent -> handleKeyPackageRelayList(event)
+                    is MarmotGroupEvent -> {
+                        if (!manager.isInitialized) return@launch
+                        handleGroupEvent(event)
+                    }
+                    is MarmotWelcomeEvent -> {
+                        if (!manager.isInitialized) return@launch
+                        handleWelcomeEvent(event)
+                    }
                     else -> {}
                 }
             } catch (e: Exception) {
-                System.err.println("MarmotEventRouter: error processing event ${event.kind}: ${e.message}")
+                _errors.trySend("Error processing Marmot event: ${e.message}")
             }
         }
     }
+
+    private suspend fun handleKeyPackageRelayList(event: MarmotKeyPackageRelayListEvent) {
+        val relays = event.relays().map { it.url }
+        if (relays.isNotEmpty()) {
+            relaysMutex.withLock {
+                userMarmotRelaysMap[event.pubKey] = relays
+                _userMarmotRelays.value = userMarmotRelaysMap.toMap()
+            }
+        }
+    }
+
+    /** Returns the Marmot relay list for a given user, or empty if unknown. */
+    fun getMarmotRelaysForUser(pubkey: String): List<String> = _userMarmotRelays.value[pubkey] ?: emptyList()
 
     private suspend fun handleGroupEvent(event: MarmotGroupEvent) {
         val result = manager.processIncomingMessage(event.toJson())
@@ -86,11 +181,22 @@ class MarmotEventRouter(
     }
 
     private fun addMessageToGroup(message: MarmotMessage) {
-        val current = _messagesPerGroup.value.toMutableMap()
-        val groupMessages = current.getOrDefault(message.groupId, emptyList()).toMutableList()
-        groupMessages.add(message)
-        current[message.groupId] = groupMessages
-        _messagesPerGroup.value = current
+        val current = _messagesPerGroup.value
+        val groupMessages = current[message.groupId] ?: emptyList()
+        // Insert sorted descending by timestamp (newest first) to avoid re-sorting in UI
+        val updated =
+            buildList(groupMessages.size + 1) {
+                var inserted = false
+                for (m in groupMessages) {
+                    if (!inserted && message.timestamp >= m.timestamp) {
+                        add(message)
+                        inserted = true
+                    }
+                    add(m)
+                }
+                if (!inserted) add(message)
+            }
+        _messagesPerGroup.value = current + (message.groupId to updated)
     }
 
     fun refreshGroups() {
@@ -98,7 +204,7 @@ class MarmotEventRouter(
             try {
                 _groups.value = manager.getGroups()
             } catch (e: Exception) {
-                System.err.println("MarmotEventRouter: error refreshing groups: ${e.message}")
+                _errors.trySend("Failed to refresh groups: ${e.message}")
             }
         }
     }
@@ -108,7 +214,7 @@ class MarmotEventRouter(
             try {
                 _invites.value = manager.getPendingInvites()
             } catch (e: Exception) {
-                System.err.println("MarmotEventRouter: error refreshing invites: ${e.message}")
+                _errors.trySend("Failed to refresh invites: ${e.message}")
             }
         }
     }
@@ -116,12 +222,10 @@ class MarmotEventRouter(
     fun refreshMessagesForGroup(groupId: String) {
         scope.launch {
             try {
-                val messages = manager.getMessages(groupId)
-                val current = _messagesPerGroup.value.toMutableMap()
-                current[groupId] = messages
-                _messagesPerGroup.value = current
+                val messages = manager.getMessages(groupId).sortedByDescending { it.timestamp }
+                _messagesPerGroup.value = _messagesPerGroup.value + (groupId to messages)
             } catch (e: Exception) {
-                System.err.println("MarmotEventRouter: error refreshing messages: ${e.message}")
+                _errors.trySend("Failed to refresh messages: ${e.message}")
             }
         }
     }
@@ -142,4 +246,21 @@ class MarmotEventRouter(
         senderKey: String,
         content: String,
     ): String = manager.sendMessage(groupId, senderKey, content)
+
+    suspend fun createGroup(
+        creatorKey: String,
+        memberKeyPackages: List<String>,
+        name: String,
+        description: String,
+        relays: List<String>,
+        admins: List<String>,
+    ): MarmotCreateGroupResult =
+        manager.createGroup(
+            creatorKey = creatorKey,
+            memberKeyPackages = memberKeyPackages,
+            name = name,
+            description = description,
+            relays = relays,
+            admins = admins,
+        )
 }

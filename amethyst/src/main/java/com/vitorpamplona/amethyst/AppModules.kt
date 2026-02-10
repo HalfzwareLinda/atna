@@ -193,16 +193,16 @@ class AppModules(
     val cacheClientConnector = CacheClientConnector(client, cache)
 
     // Persists all relay events to LMDB for offline access
-    val eventPersistenceService = EventPersistenceService(applicationIOScope)
+    val eventPersistenceService = EventPersistenceService(applicationIOScope, maxSizeMB = 512)
     val persistingCollector =
         EventCollector(client) { event, _ ->
             eventPersistenceService.persistEvent(event)
         }
 
-    // Marmot encrypted group DMs
-    val marmotManager: com.atna.marmot.MarmotManager = com.atna.marmot.MdkMarmotManager()
-    val marmotRouter = com.atna.marmot.MarmotEventRouter(marmotManager, applicationIOScope)
-    val marmotCollector =
+    // Marmot encrypted group DMs (lazy to avoid blocking app startup with MDK construction)
+    val marmotManager: com.atna.marmot.MarmotManager by lazy { com.atna.marmot.MdkMarmotManager() }
+    val marmotRouter by lazy { com.atna.marmot.MarmotEventRouter(marmotManager, applicationIOScope) }
+    val marmotCollector by lazy {
         EventCollector(client) { event, _ ->
             when (event) {
                 is com.vitorpamplona.quartz.marmotMls.MarmotGroupEvent,
@@ -212,6 +212,7 @@ class AppModules(
                 -> marmotRouter.onMarmotEvent(event)
             }
         }
+    }
 
     // Show messages from the Relay and controls their dismissal
     val notifyCoordinator = NotifyCoordinator(client)
@@ -299,76 +300,104 @@ class AppModules(
             val dbPath = appContext.filesDir.absolutePath + "/nostrdb"
             eventPersistenceService.start(dbPath)
 
-            // Phased rehydration: load profiles first so names/pictures appear
-            // immediately, then contact lists, then recent notes and DMs.
+            // Parallelized rehydration: all phases are independent and run concurrently
             val oneDayAgo =
                 com.vitorpamplona.quartz.utils.TimeUtils
                     .now() - 86400
 
             // Phase 1: Profiles (kind 0) — most important for display names
-            val profiles =
-                eventPersistenceService.loadEvents(
-                    com.vitorpamplona.quartz.nip01Core.relay.filters
-                        .Filter(kinds = listOf(0), limit = 10000),
-                )
-            profiles.sortedBy { it.createdAt }.forEach { event ->
-                cache.justConsume(event, null, false)
-            }
+            val profilesJob =
+                launch {
+                    val profiles =
+                        eventPersistenceService.loadEvents(
+                            com.vitorpamplona.quartz.nip01Core.relay.filters
+                                .Filter(kinds = listOf(0), limit = 10000),
+                        )
+                    profiles.forEach { event ->
+                        cache.justConsume(event, null, false)
+                    }
+                }
 
             // Phase 2: Contact lists (kind 3)
-            val contacts =
-                eventPersistenceService.loadEvents(
-                    com.vitorpamplona.quartz.nip01Core.relay.filters
-                        .Filter(kinds = listOf(3), limit = 5000),
-                )
-            contacts.sortedBy { it.createdAt }.forEach { event ->
-                cache.justConsume(event, null, false)
-            }
+            val contactsJob =
+                launch {
+                    val contacts =
+                        eventPersistenceService.loadEvents(
+                            com.vitorpamplona.quartz.nip01Core.relay.filters
+                                .Filter(kinds = listOf(3), limit = 5000),
+                        )
+                    contacts.forEach { event ->
+                        cache.justConsume(event, null, false)
+                    }
+                }
 
             // Phase 3: Recent notes (kind 1)
-            val notes =
-                eventPersistenceService.loadEvents(
-                    com.vitorpamplona.quartz.nip01Core.relay.filters
-                        .Filter(kinds = listOf(1), since = oneDayAgo, limit = 3000),
-                )
-            notes.sortedBy { it.createdAt }.forEach { event ->
-                cache.justConsume(event, null, false)
-            }
+            val notesJob =
+                launch {
+                    val notes =
+                        eventPersistenceService.loadEvents(
+                            com.vitorpamplona.quartz.nip01Core.relay.filters
+                                .Filter(kinds = listOf(1), since = oneDayAgo, limit = 3000),
+                        )
+                    notes.forEach { event ->
+                        cache.justConsume(event, null, false)
+                    }
+                }
 
             // Phase 4: Recent DMs and gift wraps
-            val dms =
-                eventPersistenceService.loadEvents(
-                    com.vitorpamplona.quartz.nip01Core.relay.filters
-                        .Filter(kinds = listOf(4, 14, 1059), since = oneDayAgo, limit = 1000),
-                )
-            dms.sortedBy { it.createdAt }.forEach { event ->
-                cache.justConsume(event, null, false)
-            }
+            val dmsJob =
+                launch {
+                    val dms =
+                        eventPersistenceService.loadEvents(
+                            com.vitorpamplona.quartz.nip01Core.relay.filters
+                                .Filter(kinds = listOf(4, 14, 1059), since = oneDayAgo, limit = 1000),
+                        )
+                    dms.forEach { event ->
+                        cache.justConsume(event, null, false)
+                    }
+                }
 
             // Phase 5: Trust provider lists (10040) and contact cards (30382)
-            val trustEvents =
-                eventPersistenceService.loadEvents(
-                    com.vitorpamplona.quartz.nip01Core.relay.filters
-                        .Filter(kinds = listOf(10040, 30382), limit = 5000),
-                )
-            trustEvents.sortedBy { it.createdAt }.forEach { event ->
-                cache.justConsume(event, null, false)
-            }
+            val trustJob =
+                launch {
+                    val trustEvents =
+                        eventPersistenceService.loadEvents(
+                            com.vitorpamplona.quartz.nip01Core.relay.filters
+                                .Filter(kinds = listOf(10040, 30382), limit = 5000),
+                        )
+                    trustEvents.forEach { event ->
+                        cache.justConsume(event, null, false)
+                    }
+                }
 
-            // Prune old events to keep DB size reasonable
-            eventPersistenceService.prune()
+            profilesJob.join()
+            contactsJob.join()
+            notesJob.join()
+            dmsJob.join()
+            trustJob.join()
         }
 
-        // Initialize Marmot encrypted group DMs
+        // Initialize Marmot encrypted group DMs (triggers lazy init of manager/router/collector)
         applicationIOScope.launch {
             try {
                 val marmotPath = appContext.filesDir.absolutePath + "/marmot"
+                com.vitorpamplona.quartz.utils.Log
+                    .i("Marmot", "Initializing at $marmotPath...")
+                val startMs = System.currentTimeMillis()
                 marmotManager.initialize(marmotPath)
+                val elapsed = System.currentTimeMillis() - startMs
+                com.vitorpamplona.quartz.utils.Log
+                    .i("Marmot", "Initialized in ${elapsed}ms")
+                marmotCollector // trigger lazy init to start collecting events
                 marmotRouter.refreshGroups()
                 marmotRouter.refreshInvites()
-            } catch (e: Exception) {
                 com.vitorpamplona.quartz.utils.Log
-                    .w("AppModules", "Marmot init failed: ${e.message}")
+                    .i("Marmot", "Groups and invites refreshed")
+            } catch (e: Exception) {
+                val msg = "Marmot init failed: ${e.message}"
+                com.vitorpamplona.quartz.utils.Log
+                    .e("Marmot", msg, e)
+                marmotRouter.setInitFailed(msg)
             }
         }
 
