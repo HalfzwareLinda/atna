@@ -42,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.model.DefaultDMRelayList
 import com.vitorpamplona.amethyst.model.DefaultIndexerRelayList
+import com.vitorpamplona.amethyst.model.DefaultMarmotRelayList
 import com.vitorpamplona.amethyst.model.DefaultSearchRelayList
 import com.vitorpamplona.amethyst.ui.navigation.navs.INav
 import com.vitorpamplona.amethyst.ui.navigation.topbars.SavingTopBar
@@ -59,6 +60,8 @@ import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.indexer.IndexerRelay
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.indexer.renderIndexerItems
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.local.LocalRelayListViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.local.renderLocalItems
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.marmot.MarmotRelayListViewModel
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.marmot.renderMarmotItems
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.nip37.PrivateOutboxRelayListViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.nip37.renderPrivateOutboxItems
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.nip65.Nip65RelayListViewModel
@@ -83,6 +86,7 @@ fun AllRelayListScreen(
     nav: INav,
 ) {
     val dmViewModel: DMRelayListViewModel = viewModel()
+    val marmotViewModel: MarmotRelayListViewModel = viewModel()
     val nip65ViewModel: Nip65RelayListViewModel = viewModel()
     val privateOutboxViewModel: PrivateOutboxRelayListViewModel = viewModel()
     val searchViewModel: SearchRelayListViewModel = viewModel()
@@ -95,6 +99,7 @@ fun AllRelayListScreen(
     val proxyViewModel: ProxyRelayListViewModel = viewModel()
 
     dmViewModel.init(accountViewModel)
+    marmotViewModel.init(accountViewModel)
     nip65ViewModel.init(accountViewModel)
     searchViewModel.init(accountViewModel)
     localViewModel.init(accountViewModel)
@@ -108,6 +113,7 @@ fun AllRelayListScreen(
 
     LaunchedEffect(accountViewModel) {
         dmViewModel.load()
+        marmotViewModel.load()
         nip65ViewModel.load()
         searchViewModel.load()
         localViewModel.load()
@@ -122,6 +128,7 @@ fun AllRelayListScreen(
 
     MappedAllRelayListView(
         dmViewModel,
+        marmotViewModel,
         nip65ViewModel,
         searchViewModel,
         localViewModel,
@@ -141,6 +148,7 @@ fun AllRelayListScreen(
 @Composable
 fun MappedAllRelayListView(
     dmViewModel: DMRelayListViewModel,
+    marmotViewModel: MarmotRelayListViewModel,
     nip65ViewModel: Nip65RelayListViewModel,
     searchViewModel: SearchRelayListViewModel,
     localViewModel: LocalRelayListViewModel,
@@ -155,6 +163,7 @@ fun MappedAllRelayListView(
     newNav: INav,
 ) {
     val dmFeedState by dmViewModel.relays.collectAsStateWithLifecycle()
+    val marmotFeedState by marmotViewModel.relays.collectAsStateWithLifecycle()
     val homeFeedState by nip65ViewModel.homeRelays.collectAsStateWithLifecycle()
     val notifFeedState by nip65ViewModel.notificationRelays.collectAsStateWithLifecycle()
     val privateOutboxFeedState by privateOutboxViewModel.relays.collectAsStateWithLifecycle()
@@ -173,6 +182,7 @@ fun MappedAllRelayListView(
                 titleRes = R.string.relay_settings,
                 onCancel = {
                     dmViewModel.clear()
+                    marmotViewModel.clear()
                     nip65ViewModel.clear()
                     searchViewModel.clear()
                     localViewModel.clear()
@@ -186,6 +196,7 @@ fun MappedAllRelayListView(
                 },
                 onPost = {
                     dmViewModel.create()
+                    marmotViewModel.create()
                     nip65ViewModel.create()
                     searchViewModel.create()
                     localViewModel.create()
@@ -242,6 +253,17 @@ fun MappedAllRelayListView(
                 )
             }
             renderDMItems(dmFeedState, dmViewModel, accountViewModel, newNav)
+
+            item {
+                SettingsCategoryWithButton(
+                    R.string.marmot_relay_section,
+                    R.string.marmot_relay_section_explainer,
+                    SettingsCategorySpacingModifier,
+                ) {
+                    ResetMarmotRelays(marmotViewModel)
+                }
+            }
+            renderMarmotItems(marmotFeedState, marmotViewModel, accountViewModel, newNav)
 
             item {
                 SettingsCategory(
@@ -357,6 +379,21 @@ fun ResetIndexerRelays(postViewModel: IndexerRelayListViewModel) {
                 postViewModel.addRelay(
                     relaySetupInfoBuilder(it),
                 )
+            }
+            postViewModel.loadRelayDocuments()
+        },
+    ) {
+        Text(stringRes(R.string.default_relays))
+    }
+}
+
+@Composable
+fun ResetMarmotRelays(postViewModel: MarmotRelayListViewModel) {
+    OutlinedButton(
+        onClick = {
+            postViewModel.deleteAll()
+            DefaultMarmotRelayList.forEach {
+                postViewModel.addRelay(relaySetupInfoBuilder(it))
             }
             postViewModel.loadRelayDocuments()
         },

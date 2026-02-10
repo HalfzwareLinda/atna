@@ -21,11 +21,13 @@
 package com.vitorpamplona.quartz.marmotMls
 
 import androidx.compose.runtime.Immutable
-import com.vitorpamplona.quartz.nip01Core.core.Event
+import com.vitorpamplona.quartz.nip01Core.core.Address
+import com.vitorpamplona.quartz.nip01Core.core.BaseReplaceableEvent
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
-import com.vitorpamplona.quartz.nip01Core.core.TagArrayBuilder
-import com.vitorpamplona.quartz.nip01Core.signers.eventTemplate
-import com.vitorpamplona.quartz.nip31Alts.alt
+import com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl
+import com.vitorpamplona.quartz.nip01Core.signers.NostrSigner
+import com.vitorpamplona.quartz.nip17Dm.settings.tags.RelayTag
+import com.vitorpamplona.quartz.nip31Alts.AltTag
 import com.vitorpamplona.quartz.utils.TimeUtils
 
 /**
@@ -42,21 +44,41 @@ class MarmotKeyPackageRelayListEvent(
     tags: Array<Array<String>>,
     content: String,
     sig: HexKey,
-) : Event(id, pubKey, createdAt, KIND, tags, content, sig) {
-    fun relays(): List<String> = tags.mapNotNull { tag -> if (tag.size >= 2 && tag[0] == "relay") tag[1] else null }
+) : BaseReplaceableEvent(id, pubKey, createdAt, KIND, tags, content, sig) {
+    fun relays(): List<NormalizedRelayUrl> = tags.mapNotNull(RelayTag::parse)
 
     companion object {
         const val KIND = 10051
         const val ALT_DESCRIPTION = "Marmot key package relay list"
 
-        fun build(
-            relays: List<String>,
+        fun createAddress(pubKey: HexKey): Address = Address(KIND, pubKey, FIXED_D_TAG)
+
+        fun createTagArray(relays: List<NormalizedRelayUrl>): Array<Array<String>> =
+            relays
+                .map { RelayTag.assemble(it) }
+                .plusElement(
+                    AltTag.assemble(ALT_DESCRIPTION),
+                ).toTypedArray()
+
+        suspend fun updateRelayList(
+            earlierVersion: MarmotKeyPackageRelayListEvent,
+            relays: List<NormalizedRelayUrl>,
+            signer: NostrSigner,
             createdAt: Long = TimeUtils.now(),
-            initializer: TagArrayBuilder<MarmotKeyPackageRelayListEvent>.() -> Unit = {},
-        ) = eventTemplate(KIND, "", createdAt) {
-            relays.forEach { relay -> add(arrayOf("relay", relay)) }
-            alt(ALT_DESCRIPTION)
-            initializer()
+        ): MarmotKeyPackageRelayListEvent {
+            val tags =
+                earlierVersion.tags
+                    .filter(RelayTag::notMatch)
+                    .plus(relays.map { RelayTag.assemble(it) })
+                    .toTypedArray()
+
+            return signer.sign(createdAt, KIND, tags, earlierVersion.content)
         }
+
+        suspend fun create(
+            relays: List<NormalizedRelayUrl>,
+            signer: NostrSigner,
+            createdAt: Long = TimeUtils.now(),
+        ): MarmotKeyPackageRelayListEvent = signer.sign(createdAt, KIND, createTagArray(relays), "")
     }
 }

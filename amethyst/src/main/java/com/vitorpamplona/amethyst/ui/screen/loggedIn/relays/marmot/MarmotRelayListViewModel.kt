@@ -18,44 +18,15 @@
  * AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package com.vitorpamplona.amethyst.desktop.network
+package com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.marmot
 
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.relays.common.BasicRelaySetupInfoModel
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl
 
-/**
- * Represents the connection status of a Nostr relay.
- * Used by both Android and Desktop apps.
- */
-data class RelayStatus(
-    val url: NormalizedRelayUrl,
-    val connected: Boolean,
-    val pingMs: Int? = null,
-    val compressed: Boolean = false,
-    val authenticated: Boolean = false,
-    val error: String? = null,
-)
+class MarmotRelayListViewModel : BasicRelaySetupInfoModel() {
+    override fun getRelayList(): List<NormalizedRelayUrl>? = account.marmotRelayList.getMarmotRelayList()?.relays()
 
-/**
- * Default relay URLs for Nostr connectivity.
- * Mirrors the relay set from AccountSettings (amethyst module).
- */
-object DefaultRelays {
-    val RELAYS =
-        listOf(
-            "wss://relay.damus.io",
-            "wss://relay.primal.net",
-            "wss://nos.lol",
-            "wss://nostr.mom",
-            "wss://nostr.bitcoiner.social",
-            "wss://relay.nostr.band",
-            "wss://nostr.wine",
-            "wss://nostr.oxtr.dev",
-        )
-
-    val MARMOT_RELAYS =
-        listOf(
-            "wss://relay.damus.io",
-            "wss://relay.primal.net",
-            "wss://nos.lol",
-        )
+    override suspend fun saveRelayList(urlList: List<NormalizedRelayUrl>) {
+        account.saveMarmotRelayList(urlList)
+    }
 }

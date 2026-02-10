@@ -112,8 +112,8 @@ class MarmotEventKindTest {
                 createdAt = 1000L,
                 tags =
                     arrayOf(
-                        arrayOf("relay", "wss://relay1.example.com"),
-                        arrayOf("relay", "wss://relay2.example.com"),
+                        arrayOf("relay", "wss://relay1.example.com/"),
+                        arrayOf("relay", "wss://relay2.example.com/"),
                         arrayOf("other", "value"),
                     ),
                 content = "",
@@ -121,8 +121,8 @@ class MarmotEventKindTest {
             )
         val relays = event.relays()
         assertEquals(2, relays.size)
-        assertEquals("wss://relay1.example.com", relays[0])
-        assertEquals("wss://relay2.example.com", relays[1])
+        assertEquals("wss://relay1.example.com/", relays[0].url)
+        assertEquals("wss://relay2.example.com/", relays[1].url)
     }
 
     @Test

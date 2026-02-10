@@ -257,6 +257,10 @@ class Account(
 
     val dmRelayList = DmRelayListState(signer, cache, scope, settings)
 
+    val marmotRelayList =
+        com.vitorpamplona.amethyst.model.marmot
+            .MarmotRelayListState(signer, cache, scope, settings)
+
     val privateStorageDecryptionCache = PrivateStorageRelayListDecryptionCache(signer)
     val privateStorageRelayList = PrivateStorageRelayListState(signer, cache, privateStorageDecryptionCache, scope, settings)
 
@@ -1883,6 +1887,8 @@ class Account(
     }
 
     suspend fun saveDMRelayList(dmRelays: List<NormalizedRelayUrl>) = sendLiterallyEverywhere(dmRelayList.saveRelayList(dmRelays))
+
+    suspend fun saveMarmotRelayList(relays: List<NormalizedRelayUrl>) = sendLiterallyEverywhere(marmotRelayList.saveRelayList(relays))
 
     suspend fun savePrivateOutboxRelayList(relays: List<NormalizedRelayUrl>) = sendMyPublicAndPrivateOutbox(privateStorageRelayList.saveRelayList(relays))
 

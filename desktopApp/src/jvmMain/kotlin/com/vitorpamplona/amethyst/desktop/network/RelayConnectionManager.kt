@@ -34,6 +34,7 @@ import com.vitorpamplona.quartz.nip01Core.relay.sockets.WebsocketBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Manages Nostr relay connections, subscriptions, and status tracking.
@@ -55,11 +56,20 @@ open class RelayConnectionManager(
     val connectedRelays: StateFlow<Set<NormalizedRelayUrl>> = _client.connectedRelaysFlow()
     val availableRelays: StateFlow<Set<NormalizedRelayUrl>> = _client.availableRelaysFlow()
 
+    /**
+     * Marks a relay as authenticated in status tracking.
+     * Call from auth coordinator when NIP-42 AUTH succeeds.
+     */
+    fun markRelayAuthenticated(url: NormalizedRelayUrl) {
+        updateRelayStatus(url) { it.copy(authenticated = true) }
+    }
+
     init {
         _client.subscribe(this)
     }
 
     fun connect() {
+        println("[Relay] connect() called — available relays: ${availableRelays.value.size}, connected: ${connectedRelays.value.size}")
         _client.connect()
     }
 
@@ -70,14 +80,25 @@ open class RelayConnectionManager(
     fun addRelay(url: String): NormalizedRelayUrl? {
         val normalized = RelayUrlNormalizer.Companion.normalizeOrNull(url) ?: return null
         updateRelayStatus(normalized) { it.copy(connected = false, error = null) }
+        _client.addRelayToPool(normalized)
         return normalized
     }
 
     fun removeRelay(url: NormalizedRelayUrl) {
-        _relayStatuses.value = _relayStatuses.value - url
+        _relayStatuses.update { it - url }
+    }
+
+    /**
+     * Clears all relay state (pool + status tracking).
+     * Call on logout before re-adding relays for a new session.
+     */
+    fun clearRelays() {
+        _client.removeAllRelaysFromPool()
+        _relayStatuses.update { emptyMap() }
     }
 
     fun addDefaultRelays() {
+        println("[Relay] Adding ${DefaultRelays.RELAYS.size} default relays: ${DefaultRelays.RELAYS}")
         DefaultRelays.RELAYS.forEach { addRelay(it) }
     }
 
@@ -88,6 +109,18 @@ open class RelayConnectionManager(
         listener: IRequestListener? = null,
     ) {
         val filterMap = relays.associateWith { filters }
+        _client.openReqSubscription(subId, filterMap, listener)
+    }
+
+    /**
+     * Subscribes with per-relay filter routing (outbox model).
+     * Each relay receives only the filters relevant to users on that relay.
+     */
+    fun subscribeRouted(
+        subId: String,
+        filterMap: Map<NormalizedRelayUrl, List<Filter>>,
+        listener: IRequestListener? = null,
+    ) {
         _client.openReqSubscription(subId, filterMap, listener)
     }
 
@@ -169,14 +202,14 @@ open class RelayConnectionManager(
         url: NormalizedRelayUrl,
         update: (RelayStatus) -> RelayStatus,
     ) {
-        _relayStatuses.value =
-            _relayStatuses.value.toMutableMap().apply {
-                val current = this[url] ?: RelayStatus(url, connected = false)
-                this[url] = update(current)
-            }
+        _relayStatuses.update { current ->
+            val status = current[url] ?: RelayStatus(url, connected = false)
+            current + (url to update(status))
+        }
     }
 
     override fun onConnecting(relay: IRelayClient) {
+        println("[Relay] Connecting to ${relay.url}...")
         updateRelayStatus(relay.url) {
             it.copy(connected = false, error = null)
         }
@@ -187,12 +220,14 @@ open class RelayConnectionManager(
         pingMillis: Int,
         compressed: Boolean,
     ) {
+        println("[Relay] Connected to ${relay.url} (ping=${pingMillis}ms, compressed=$compressed)")
         updateRelayStatus(relay.url) {
             it.copy(connected = true, pingMs = pingMillis, compressed = compressed, error = null)
         }
     }
 
     override fun onDisconnected(relay: IRelayClient) {
+        println("[Relay] Disconnected from ${relay.url}")
         updateRelayStatus(relay.url) {
             it.copy(connected = false)
         }
@@ -202,6 +237,7 @@ open class RelayConnectionManager(
         relay: IRelayClient,
         errorMessage: String,
     ) {
+        System.err.println("[Relay] Cannot connect to ${relay.url}: $errorMessage")
         updateRelayStatus(relay.url) {
             it.copy(connected = false, error = errorMessage)
         }

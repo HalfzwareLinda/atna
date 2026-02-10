@@ -72,8 +72,8 @@ fun RelayStatusCard(
             ) {
                 val statusColor =
                     when {
-                        status.connected -> Color.Green
-                        status.error != null -> Color.Red
+                        status.connected -> Color(0xFF4CAF50)
+                        status.error != null -> Color(0xFFEF5350)
                         else -> Color.Gray
                     }
 
@@ -115,7 +115,7 @@ fun RelayStatusCard(
                         Text(
                             error,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Red.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                         )
                     }
                 }

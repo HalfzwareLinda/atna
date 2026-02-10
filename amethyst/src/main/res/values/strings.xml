@@ -1505,10 +1505,34 @@
     <string name="marmot_accepting">Accepting…</string>
     <string name="marmot_declining">Declining…</string>
     <string name="marmot_create_group">New Group</string>
+    <string name="marmot_relay_section">Marmot Group Relays</string>
+    <string name="marmot_relay_section_explainer">Relays that hold your Marmot MLS key packages for encrypted group invitations. Others will look for your key packages on these relays when inviting you to a group. Insert between 1–3 relays.</string>
+    <string name="marmot_new_chat">New Marmot Chat</string>
+    <string name="marmot_start_chat">Start Marmot Chat</string>
+    <string name="marmot_search_users">Search by name or npub\u2026</string>
+    <string name="marmot_initializing">Initializing Marmot\u2026</string>
+    <string name="marmot_looking_up_relays">Looking up Marmot relay list\u2026</string>
+    <string name="marmot_looking_up_keypackage">Looking up key package\u2026</string>
+    <string name="marmot_creating_group">Creating encrypted group\u2026</string>
+    <string name="marmot_no_keypackage_title">No Key Package Found</string>
+    <string name="marmot_no_keypackage_message">%1$s hasn\'t published Marmot key packages yet. Would you like to send them a NIP-17 DM inviting them to set up Marmot encrypted messaging?</string>
+    <string name="marmot_send_invite">Send Invite</string>
+    <string name="marmot_invite_sent">Invitation sent!</string>
+    <string name="marmot_invite_message">Hey! I\'d like to chat with you using Marmot encrypted messaging. Marmot uses the MLS protocol for end-to-end encrypted group chats on Nostr. To get started, install an app that supports Marmot and publish your key package.</string>
+    <string name="marmot_error_lookup">Error looking up key packages: %1$s</string>
 
     <!-- ATNA: Storage Backend -->
     <string name="storage_backend">Storage Backend</string>
     <string name="storage_backend_description">Event storage engine for local data</string>
     <string name="storage_backend_sqlite">SQLite (Default)</string>
     <string name="storage_backend_nostrdb">nostrdb (Experimental)</string>
+
+    <!-- ATNA: Clear Local Database -->
+    <string name="clear_database">Clear Local Database</string>
+    <string name="clear_database_description">Delete cached events and Marmot messages for testing</string>
+    <string name="clear_database_lmdb_label">Event cache (LMDB)</string>
+    <string name="clear_database_marmot_label">Marmot DMs</string>
+    <string name="clear_database_warning">This will permanently delete selected local data. This cannot be undone.</string>
+    <string name="clear_database_success">Database cleared successfully</string>
+    <string name="clear_database_error">Failed to clear database: %1$s</string>
 </resources>

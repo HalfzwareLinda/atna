@@ -29,6 +29,7 @@ import com.vitorpamplona.amethyst.ui.screen.FeedDefinition
 import com.vitorpamplona.quartz.experimental.ephemChat.list.EphemeralChatListEvent
 import com.vitorpamplona.quartz.experimental.nipA3.PaymentTargetsEvent
 import com.vitorpamplona.quartz.experimental.trustedAssertions.list.TrustProviderListEvent
+import com.vitorpamplona.quartz.marmotMls.MarmotKeyPackageRelayListEvent
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.crypto.KeyPair
 import com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent
@@ -80,6 +81,8 @@ val DefaultNIP65List =
     )
 
 val DefaultDMRelayList = listOf(Constants.auth, Constants.oxchat, Constants.nos)
+
+val DefaultMarmotRelayList = listOf(Constants.damus, Constants.primal, Constants.nos)
 
 val DefaultSearchRelayList = setOf(Constants.band, Constants.wine, Constants.where, Constants.nostoday)
 
@@ -142,6 +145,7 @@ class AccountSettings(
     var backupHashtagList: HashtagListEvent? = null,
     var backupGeohashList: GeohashListEvent? = null,
     var backupEphemeralChatList: EphemeralChatListEvent? = null,
+    var backupMarmotRelayList: MarmotKeyPackageRelayListEvent? = null,
     var backupTrustProviderList: TrustProviderListEvent? = null,
     val lastReadPerRoute: MutableStateFlow<Map<String, MutableStateFlow<Long>>> = MutableStateFlow(mapOf()),
     val hasDonatedInVersion: MutableStateFlow<Set<String>> = MutableStateFlow(setOf<String>()),
@@ -330,6 +334,15 @@ class AccountSettings(
         // Events might be different objects, we have to compare their ids.
         if (backupDMRelayList?.id != newDMRelayList.id) {
             backupDMRelayList = newDMRelayList
+            saveAccountSettings()
+        }
+    }
+
+    fun updateMarmotRelayList(newMarmotRelayList: MarmotKeyPackageRelayListEvent?) {
+        if (newMarmotRelayList == null || newMarmotRelayList.tags.isEmpty()) return
+
+        if (backupMarmotRelayList?.id != newMarmotRelayList.id) {
+            backupMarmotRelayList = newMarmotRelayList
             saveAccountSettings()
         }
     }
