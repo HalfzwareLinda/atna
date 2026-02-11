@@ -1,16 +1,17 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-title: "[FEATURE]"
-labels: ''
+name: Feature Request
+about: Suggest a feature for ATNA
+title: "[Feature] "
+labels: enhancement
 assignees: ''
 
 ---
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**Describe the feature**
+What would you like ATNA to do?
 
-**Bounty (in Bitcoin sats) offered for the implementation**
-The size of the bounty is proportional to how much this matters to you. If no bounty is offered,
-not even a small one, this feature will not be coded because it doesn't actually matter to you.
-We prioritize feature development by its bounty size compared to how much work is required to get it done.
+**Use case**
+Why is this useful?
+
+**Additional context**
+Anything else?

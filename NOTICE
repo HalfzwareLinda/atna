@@ -1,0 +1,15 @@
+ATNA — All The Nostr Apps
+Copyright (c) 2025-2026 HalfzwareLinda
+
+This project is a fork of Amethyst (https://github.com/vitorpamplona/amethyst).
+Original work copyright (c) 2023 Vitor Pamplona.
+
+Both the original work and all ATNA additions are licensed under the MIT License.
+See the LICENSE file for details.
+
+ATNA additions include:
+- ndb-bridge/ — LMDB event persistence via rust-nostr SDK
+- marmot-bridge/ — Marmot MLS messaging via mdk-kotlin
+- bug-reporter/ — Crash handling and GitHub issue submission
+- desktopApp/ extensions — NIP-42 auth, NIP-65 outbox, relay management, memory management
+- quartz/ extensions — NIP-85 trust assertions, Marmot event kinds (443-445, 10051)

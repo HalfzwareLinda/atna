@@ -1,36 +1,31 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: "[BUG]"
-labels: ''
+name: Bug Report
+about: Report a bug in ATNA
+title: "[Bug] "
+labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**Platform**
+- [ ] Android
+- [ ] Desktop (Linux)
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**Describe the bug**
+What happened?
+
+**Steps to reproduce**
+1.
+2.
+3.
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What should have happened?
 
-**Video and Screenshots**
-If applicable, add a video and/or screenshots to help explain your problem.
+**Screenshots/logs**
+If applicable.
 
-**Device (please complete the following information):**
- - Phone Brand/Model [e.g. Pixel 7 Pro]:
- - Android Version [e.g. 34]:
- - App Version [e.g. v0.94.3]:
- - App Flavour [e.g. Google Play or FDroid]: 
- - Amber Version (if using it to sign):
-
-**Bounty (in Bitcoin sats) offered for a solution**
-The size of the bounty is proportional to how much this matters to you. If no bounty is offered,
-not even a small one, this bug will not be worked on because it doesn't matter to you. We prioritize
-bug fixing to issues that have bounties, even small ones.
+**Environment**
+- ATNA version:
+- OS version:
+- Device (if Android):
